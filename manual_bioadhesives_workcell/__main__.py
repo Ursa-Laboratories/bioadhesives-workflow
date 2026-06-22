@@ -11,6 +11,7 @@ from .settings import CONTROLLER_CONFIG, EXPERIMENT_ID, ManualWorkflowSettings, 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
+        prog="python -m manual_bioadhesives_workcell",
         description="Run the bioadhesives workflow with manual plate moves and no robot arm.",
     )
     parser.add_argument(

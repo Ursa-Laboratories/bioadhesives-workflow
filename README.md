@@ -4,36 +4,49 @@ Runs the bioadhesives Opentrons -> SHARC -> ASMI flow without the robot arm.
 The operator moves the well plate by hand between machines and confirms each
 move in the CLI before the next hardware step starts.
 
+
+## Operator Sequence
+
+1. Health check Opentrons, SHARC, and ASMI. Each reachable machine prints `✅`.
+2. Confirm the well plate is in the Opentrons.
+3. Run Opentrons fills for all configured wells.
+4. Move the plate to SHARC and press `y`.
+5. Run SHARC UV cure protocols for all configured wells.
+6. Move the plate to ASMI and press `y`.
+7. Run ASMI indentation protocols for all configured wells.
+8. Export the joined CSV from the controller SQLite DB.
+9. Finish.
+
+Any prompt response other than `y` or `yes` aborts before the next hardware step.
+
+## Install
+
+From the repo root, install the Python dependencies with pip. If you just
+cloned the repo, enter the checkout first:
+
+```bash
+cd manual_bioadhesives_workcell
+python -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
+```
+
+Runtime dependencies are `requests` and `PyYAML`. `pytest` is included for the
+local test suite.
+
 ## Run
 
-From the repo root on the controller machine:
+Run commands from the repo root, meaning the directory that contains this
+`README.md`:
 
 ```bash
 python -m manual_bioadhesives_workcell
 ```
 
-The workflow reads device URLs from `manual_bioadhesives_workcell/settings.py`:
-
-- Opentrons Flex: `OPENTRONS_BASE_URL`, default `http://10.210.29.218:31950`
-- SHARC station worker: `SHARC_BASE_URL`, default `http://10.210.29.12:8000`
-- ASMI station worker: `ASMI_BASE_URL`, default `http://10.210.29.17:8000`
-
-The arm worker is not health-checked and is never called. The
-`scripts/test_arm_loop_with_asmi_pause.py` script only talks to the arm worker
-through `arm.base_url`, which is `http://localhost:5004` by default. That port
-serves the arm worker's `/run` route, not the station worker's `/run-protocol`
-route used for SHARC and ASMI.
-
-The SHARC and ASMI protocol YAMLs live inside this package:
-
-```text
-manual_bioadhesives_workcell/machines/protocols/sharc_uv_one_well.yaml
-manual_bioadhesives_workcell/machines/protocols/asmi_indentation_a1.yaml
-```
-
-`configs/controller.yaml` is still used for gantry/deck YAML paths and the
-controller DB path. Its station URLs, Opentrons URL, timeouts, and station
-`base_protocol` entries are not used by this manual workflow.
+The `-m` command runs `manual_bioadhesives_workcell/__main__.py`, which builds
+the workflow from settings and calls `ManualBioadhesivesWorkflow.run()`. Do not
+run `workflow.py` directly.
 
 Useful options:
 
@@ -50,7 +63,48 @@ must still be reachable, but CubOS should not move hardware.
 `--skip-opentrons-fill` uses the existing Opentrons placeholder client and marks
 the Opentrons health line as an intentional placeholder.
 
+## Configuration
+
+The workflow reads device URLs from `manual_bioadhesives_workcell/settings.py`:
+
+- Opentrons Flex: `OPENTRONS_BASE_URL`, default `http://10.210.29.218:31950`
+- SHARC station worker: `SHARC_BASE_URL`, default `http://10.210.29.12:8000`
+- ASMI station worker: `ASMI_BASE_URL`, default `http://10.210.29.17:8000`
+
+The arm worker is not health-checked and is never called. This manual workflow
+talks to Opentrons and to the SHARC/ASMI station-worker `/run-protocol` routes.
+Port `5004` is the arm worker's `/run` route and is not used here.
+
+`configs/controller.yaml` is used for the gantry/deck YAML paths sent to the
+station workers and for the controller DB path. The default local config points
+at:
+
+```text
+configs/gantry/sharc_gantry.yaml
+configs/gantry/asmi_gantry.yaml
+configs/deck/sharc_deck.yaml
+configs/deck/asmi_deck.yaml
+```
+
+The SHARC and ASMI protocol YAMLs live inside the Python package:
+
+```text
+manual_bioadhesives_workcell/machines/protocols/sharc_uv_one_well.yaml
+manual_bioadhesives_workcell/machines/protocols/asmi_indentation_a1.yaml
+```
+
+The station URLs, Opentrons URL, timeouts, and `base_protocol` values inside
+`configs/controller.yaml` are kept as config metadata, but this manual workflow
+uses the values in `settings.py` for those runtime decisions.
+
 ## Layout
+
+Repo-level files and directories:
+
+- `manual_bioadhesives_workcell/` - importable Python package and `-m` entrypoint
+- `configs/` - local controller, gantry, and deck YAMLs
+- `tests/` - pytest suite
+- `README.md` - operator and developer notes
 
 Machine-specific code lives under `manual_bioadhesives_workcell/machines/`:
 
@@ -61,26 +115,20 @@ Machine-specific code lives under `manual_bioadhesives_workcell/machines/`:
 - shared protocol rendering helper
 - SHARC and ASMI protocol YAMLs
 
-Top-level files hold workflow orchestration, settings, data models, health
-checks, result storage, and CSV reporting.
+The package top-level holds workflow orchestration, settings, data models,
+health checks, result storage, and CSV reporting.
 
-## Operator Sequence
-
-1. Health check Opentrons, SHARC, and ASMI. Each reachable machine prints `✅`.
-2. Confirm the well plate is in the Opentrons.
-3. Run Opentrons fills for all configured wells.
-4. Move the plate to SHARC and press `y`.
-5. Run SHARC UV cure protocols for all configured wells.
-6. Move the plate to ASMI and press `y`.
-7. Run ASMI indentation protocols for all configured wells.
-8. Export the joined CSV from the controller SQLite DB.
-9. Finish.
-
-Any prompt response other than `y` or `yes` aborts before the next hardware step.
-
-## Configure Wells
+## Configure Settings
 
 Edit `manual_bioadhesives_workcell/settings.py`.
+
+This file owns the editable runtime defaults for the manual workflow:
+
+- `EXPERIMENT_ID`
+- Opentrons URL, timeout, deck slots, labware, fill volume, and pipetting settings
+- SHARC station URL, timeout, UV cure protocol settings, and cure-time defaults
+- ASMI station URL, timeout, indentation heights, step size, force limit, and measurement settings
+- the per-well `WORKFLOW_WELLS` plan
 
 Define the source tube rack first:
 
@@ -147,6 +195,7 @@ results/<experiment_id>_manual_joined_asmi.csv
 ## Tests
 
 ```bash
-python -m pytest manual_bioadhesives_workcell/tests -q
+python -m manual_bioadhesives_workcell --help
+python -m pytest tests -q
 python -m py_compile manual_bioadhesives_workcell/*.py
 ```

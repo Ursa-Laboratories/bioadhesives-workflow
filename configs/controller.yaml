@@ -1,0 +1,30 @@
+# Manual bioadhesives controller config.
+#
+# The manual workflow reads station URLs and timeouts from
+# manual_bioadhesives_workcell/settings.py. This file is still used for the
+# gantry/deck YAML paths sent to each CubOS station worker and for the local
+# controller result database path.
+
+stations:
+  sharc:
+    base_url: "http://10.210.29.12:8000"
+    gantry_config: configs/gantry/sharc_gantry.yaml
+    deck_config: configs/deck/sharc_deck.yaml
+    base_protocol: manual_bioadhesives_workcell/machines/protocols/sharc_uv_one_well.yaml
+    timeout_s: 900
+
+  asmi:
+    base_url: "http://10.210.29.17:8000"
+    gantry_config: configs/gantry/asmi_gantry.yaml
+    deck_config: configs/deck/asmi_deck.yaml
+    base_protocol: manual_bioadhesives_workcell/machines/protocols/asmi_indentation_a1.yaml
+    timeout_s: 900
+
+opentrons:
+  base_url: "http://10.210.29.218:31950"
+  timeout_s: 600
+
+results:
+  db_path: results/polymer_indent.db
+
+mock_mode: false

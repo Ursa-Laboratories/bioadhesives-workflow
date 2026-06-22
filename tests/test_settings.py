@@ -3,6 +3,7 @@ import yaml
 from manual_bioadhesives_workcell.settings import (
     ASMI_PORT,
     ASMI_PROTOCOL,
+    CONTROLLER_CONFIG,
     OPENTRONS_PORT,
     SHARC_PORT,
     SHARC_PROTOCOL,
@@ -15,6 +16,15 @@ def test_default_ports_are_defined_in_settings_and_match_station_worker_configs(
     assert OPENTRONS_PORT == 31950
     assert SHARC_PORT == 8000
     assert ASMI_PORT == 8000
+
+
+def test_default_workflow_builds_from_repo_root_config():
+    workflow = build_workflow(ManualWorkflowSettings(skip_opentrons_fill=True, mock_stations=True))
+
+    assert CONTROLLER_CONFIG.exists()
+    assert workflow.db_path.name == "polymer_indent.db"
+    assert workflow.runners.sharc.station.client.gantry_config_yaml
+    assert workflow.runners.asmi.station.client.deck_config_yaml
 
 
 def test_build_workflow_uses_package_settings_not_controller_endpoint_values(tmp_path):
