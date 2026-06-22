@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from typing import Any, Mapping
 
-from polymer_indent.loop import StationBundle
-from polymer_indent.protocol_render import apply_overrides, render_protocol
+from .protocol_render import apply_overrides, render_protocol
+from .station_client import StationBundle
 
 
 class SharcCureRunner:

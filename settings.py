@@ -6,15 +6,16 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from polymer_indent.clients import CubOSStationClient
-from polymer_indent.clients import OpentronsClient
-from polymer_indent.config import load_controller_config
-from polymer_indent.loop import StationBundle
-
-from .asmi_runner import AsmiIndentationRunner
+from .config import load_controller_config
+from .machines import (
+    AsmiIndentationRunner,
+    CubOSStationClient,
+    OpentronsClient,
+    OpentronsFillRunner,
+    SharcCureRunner,
+    StationBundle,
+)
 from .models import WorkflowWell, build_experiment
-from .opentrons_runner import OpentronsFillRunner
-from .sharc_runner import SharcCureRunner
 from .workflow import ManualBioadhesivesWorkflow, ManualRunners
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -22,13 +23,46 @@ PACKAGE_ROOT = Path(__file__).resolve().parent
 
 EXPERIMENT_ID = "bioadhesives_manual_no_arm"
 CONTROLLER_CONFIG = REPO_ROOT / "configs" / "controller.yaml"
-SHARC_PROTOCOL = PACKAGE_ROOT / "protocols" / "sharc_uv_one_well.yaml"
-ASMI_PROTOCOL = PACKAGE_ROOT / "protocols" / "asmi_indentation_a1.yaml"
+MACHINES_ROOT = PACKAGE_ROOT / "machines"
+SHARC_PROTOCOL = MACHINES_ROOT / "protocols" / "sharc_uv_one_well.yaml"
+ASMI_PROTOCOL = MACHINES_ROOT / "protocols" / "asmi_indentation_a1.yaml"
 
+# Device endpoints used by this manual workflow. The arm worker is intentionally
+# absent because plate moves are manual. Port 5004 belongs to arm_worker; SHARC
+# and ASMI protocol calls go to station_worker, which serves /run-protocol.
+OPENTRONS_HOST = "10.210.29.218"
+OPENTRONS_PORT = 31950
+OPENTRONS_BASE_URL = f"http://{OPENTRONS_HOST}:{OPENTRONS_PORT}"
+OPENTRONS_TIMEOUT_S = 600.0
+
+SHARC_HOST = "10.210.29.12"
+SHARC_PORT = 8000
+SHARC_BASE_URL = f"http://{SHARC_HOST}:{SHARC_PORT}"
+SHARC_TIMEOUT_S = 900.0
+
+ASMI_HOST = "10.210.29.17"
+ASMI_PORT = 8000
+ASMI_BASE_URL = f"http://{ASMI_HOST}:{ASMI_PORT}"
+ASMI_TIMEOUT_S = 900.0
+
+# Define what reagent is in each source tube rack well.
+REAGENT_SOURCES = {
+    "pegda_a": "A1",
+}
+
+# Define what goes into the plate. Each WorkflowWell maps a reagent source tube
+# to a target well on the well plate and the SHARC cure time for that well.
 WORKFLOW_WELLS = [
-    WorkflowWell(target_well="A1", source_well="A1", uv_exposure_s=11.0),
+    WorkflowWell(
+        target_well="A1",
+        source_well=REAGENT_SOURCES["pegda_a"],
+        formulation="pegda_a",
+        uv_exposure_s=11.0,
+    ),
 ]
 
+# Define the Opentrons deck layout and plate labware used by the generated fill
+# protocol.
 OPENTRONS_TIP_RACK_SLOT = "A2"
 OPENTRONS_TUBE_RACK_SLOT = "B2"
 OPENTRONS_PLATE_SLOT = "D1"
@@ -57,6 +91,12 @@ class ManualWorkflowSettings:
     controller_config: Path = CONTROLLER_CONFIG
     output_csv: Path | None = None
     wells: list[WorkflowWell] | None = None
+    opentrons_base_url: str | None = OPENTRONS_BASE_URL
+    sharc_base_url: str = SHARC_BASE_URL
+    asmi_base_url: str = ASMI_BASE_URL
+    opentrons_timeout_s: float = OPENTRONS_TIMEOUT_S
+    sharc_timeout_s: float = SHARC_TIMEOUT_S
+    asmi_timeout_s: float = ASMI_TIMEOUT_S
     mock_stations: bool = MOCK_STATIONS
     skip_opentrons_fill: bool = SKIP_OPENTRONS_FILL
 
@@ -73,15 +113,31 @@ def build_workflow(
         wells=settings.wells or WORKFLOW_WELLS,
         shared_params=shared_params(),
     )
-    opentrons_client = OpentronsClient(None) if settings.skip_opentrons_fill else cfg.opentrons_client()
+    opentrons_client = (
+        OpentronsClient(None)
+        if settings.skip_opentrons_fill
+        else _opentrons_client(settings.opentrons_base_url, settings.opentrons_timeout_s)
+    )
     runners = ManualRunners(
         opentrons=OpentronsFillRunner(opentrons_client),
         sharc=SharcCureRunner(
-            _station_bundle_with_protocol(cfg, "sharc", SHARC_PROTOCOL),
+            _station_bundle_with_protocol(
+                cfg,
+                "sharc",
+                SHARC_PROTOCOL,
+                base_url=settings.sharc_base_url,
+                timeout_s=settings.sharc_timeout_s,
+            ),
             mock_mode=settings.mock_stations,
         ),
         asmi=AsmiIndentationRunner(
-            _station_bundle_with_protocol(cfg, "asmi", ASMI_PROTOCOL),
+            _station_bundle_with_protocol(
+                cfg,
+                "asmi",
+                ASMI_PROTOCOL,
+                base_url=settings.asmi_base_url,
+                timeout_s=settings.asmi_timeout_s,
+            ),
             mock_mode=settings.mock_stations,
         ),
     )
@@ -96,21 +152,35 @@ def build_workflow(
     )
 
 
-def _station_bundle_with_protocol(cfg, station_name: str, protocol_path: Path) -> StationBundle:
+def _station_bundle_with_protocol(
+    cfg,
+    station_name: str,
+    protocol_path: Path,
+    *,
+    base_url: str,
+    timeout_s: float,
+) -> StationBundle:
     station_cfg = cfg.raw["stations"][station_name]
-    gantry_yaml = cfg._abs(station_cfg["gantry_config"]).read_text()
-    deck_yaml = cfg._abs(station_cfg["deck_config"]).read_text()
+    gantry_yaml = cfg.abs_path(station_cfg["gantry_config"]).read_text()
+    deck_yaml = cfg.abs_path(station_cfg["deck_config"]).read_text()
     client = CubOSStationClient(
-        base_url=station_cfg["base_url"],
+        base_url=base_url,
         station=station_name,
         gantry_config_yaml=gantry_yaml,
         deck_config_yaml=deck_yaml,
-        timeout_s=float(station_cfg.get("timeout_s", 900.0)),
+        timeout_s=float(timeout_s),
         mock_mode=cfg.mock_mode,
     )
     return StationBundle(
         client=client,
         base_protocol_yaml=protocol_path.read_text(),
+    )
+
+
+def _opentrons_client(base_url: str | None, timeout_s: float) -> OpentronsClient:
+    return OpentronsClient(
+        base_url,
+        timeout_s=float(timeout_s),
     )
 
 

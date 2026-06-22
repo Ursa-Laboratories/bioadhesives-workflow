@@ -1,8 +1,8 @@
 import csv
 
 from manual_bioadhesives_workcell.models import WorkflowWell, build_experiment
+from manual_bioadhesives_workcell.result_store import ResultStore
 from manual_bioadhesives_workcell.workflow import ManualBioadhesivesWorkflow, ManualRunners
-from polymer_indent.results import ResultStore
 
 
 class FakeRunner:

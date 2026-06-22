@@ -13,7 +13,11 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Run the bioadhesives workflow with manual plate moves and no robot arm.",
     )
-    parser.add_argument("--config", default=str(CONTROLLER_CONFIG), help="controller config with current device URLs")
+    parser.add_argument(
+        "--config",
+        default=str(CONTROLLER_CONFIG),
+        help="controller config for gantry/deck paths and DB path",
+    )
     parser.add_argument("--experiment-id", default=EXPERIMENT_ID)
     parser.add_argument("--output-csv", default=None, help="joined ASMI-shaped CSV path")
     parser.add_argument("--mock-stations", action="store_true", help="send mock_mode=True to SHARC and ASMI")

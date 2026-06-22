@@ -7,10 +7,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Protocol
 
-from polymer_indent.results import ResultStore
-
 from .health import HealthTarget, failed_health_names, format_health_report, run_health_checks
 from .reporting import export_joined_asmi_csv
+from .result_store import ResultStore
 
 
 class MachineRunner(Protocol):

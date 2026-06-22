@@ -6,8 +6,6 @@ import re
 from dataclasses import dataclass, field
 from typing import Any, Mapping, Sequence
 
-from polymer_indent.experiment import Experiment
-
 _WELL_RE = re.compile(r"^[A-Za-z]+[0-9]+$")
 _NESTED_PARAM_KEYS = (
     "sharc_scalar",
@@ -17,9 +15,27 @@ _NESTED_PARAM_KEYS = (
 )
 
 
+@dataclass
+class Experiment:
+    """Ordered manual workcell experiment definition."""
+
+    id: str
+    wells: list[str]
+    params: dict[str, dict[str, Any]]
+    defaults: dict[str, Any] = field(default_factory=dict)
+    raw: dict[str, Any] = field(default_factory=dict)
+
+    def well_params(self, well: str) -> dict[str, Any]:
+        return self.params[well]
+
+    def items(self):
+        for well in self.wells:
+            yield well, self.params[well]
+
+
 @dataclass(frozen=True)
 class WorkflowWell:
-    """One target well in the manual workflow."""
+    """One target well and the reagent source dispensed into it."""
 
     target_well: str
     source_well: str = "A1"

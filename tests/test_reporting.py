@@ -2,7 +2,7 @@ import csv
 
 from manual_bioadhesives_workcell.models import WorkflowWell, build_experiment
 from manual_bioadhesives_workcell.reporting import export_joined_asmi_csv
-from polymer_indent.results import ResultStore
+from manual_bioadhesives_workcell.result_store import ResultStore
 
 
 def _seed_experiment(db_path, *, asmi_result):

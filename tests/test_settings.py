@@ -1,14 +1,23 @@
 import yaml
 
 from manual_bioadhesives_workcell.settings import (
+    ASMI_PORT,
     ASMI_PROTOCOL,
+    OPENTRONS_PORT,
+    SHARC_PORT,
     SHARC_PROTOCOL,
     ManualWorkflowSettings,
     build_workflow,
 )
 
 
-def test_build_workflow_uses_package_protocols_not_controller_base_protocol(tmp_path):
+def test_default_ports_are_defined_in_settings_and_match_station_worker_configs():
+    assert OPENTRONS_PORT == 31950
+    assert SHARC_PORT == 8000
+    assert ASMI_PORT == 8000
+
+
+def test_build_workflow_uses_package_settings_not_controller_endpoint_values(tmp_path):
     gantry = tmp_path / "gantry.yaml"
     deck = tmp_path / "deck.yaml"
     gantry.write_text("serial_port: /dev/null\n")
@@ -20,19 +29,21 @@ def test_build_workflow_uses_package_protocols_not_controller_base_protocol(tmp_
             {
                 "stations": {
                     "sharc": {
-                        "base_url": "http://sharc.example",
+                        "base_url": "http://wrong-sharc.example",
                         "gantry_config": str(gantry),
                         "deck_config": str(deck),
                         "base_protocol": str(missing_base_protocol),
+                        "timeout_s": 1,
                     },
                     "asmi": {
-                        "base_url": "http://asmi.example",
+                        "base_url": "http://wrong-asmi.example",
                         "gantry_config": str(gantry),
                         "deck_config": str(deck),
                         "base_protocol": str(missing_base_protocol),
+                        "timeout_s": 1,
                     },
                 },
-                "opentrons": {"base_url": None},
+                "opentrons": {"base_url": "http://wrong-opentrons.example", "timeout_s": 1},
                 "results": {"db_path": str(tmp_path / "results.db")},
             }
         )
@@ -41,9 +52,20 @@ def test_build_workflow_uses_package_protocols_not_controller_base_protocol(tmp_
     workflow = build_workflow(
         ManualWorkflowSettings(
             controller_config=config,
-            skip_opentrons_fill=True,
+            opentrons_base_url="http://settings-opentrons.example:31950",
+            sharc_base_url="http://settings-sharc.example:8000",
+            asmi_base_url="http://settings-asmi.example:8000",
+            opentrons_timeout_s=12,
+            sharc_timeout_s=34,
+            asmi_timeout_s=56,
         )
     )
 
     assert workflow.runners.sharc.station.base_protocol_yaml == SHARC_PROTOCOL.read_text()
     assert workflow.runners.asmi.station.base_protocol_yaml == ASMI_PROTOCOL.read_text()
+    assert workflow.runners.opentrons.client.base_url == "http://settings-opentrons.example:31950"
+    assert workflow.runners.opentrons.client.timeout_s == 12
+    assert workflow.runners.sharc.station.client.base_url == "http://settings-sharc.example:8000"
+    assert workflow.runners.sharc.station.client.timeout_s == 34
+    assert workflow.runners.asmi.station.client.base_url == "http://settings-asmi.example:8000"
+    assert workflow.runners.asmi.station.client.timeout_s == 56
