@@ -68,6 +68,7 @@ def test_build_workflow_uses_package_settings_not_controller_endpoint_values(tmp
             opentrons_timeout_s=12,
             sharc_timeout_s=34,
             asmi_timeout_s=56,
+            health_timeout_s=2,
         )
     )
 
@@ -75,7 +76,10 @@ def test_build_workflow_uses_package_settings_not_controller_endpoint_values(tmp
     assert workflow.runners.asmi.station.base_protocol_yaml == ASMI_PROTOCOL.read_text()
     assert workflow.runners.opentrons.client.base_url == "http://settings-opentrons.example:31950"
     assert workflow.runners.opentrons.client.timeout_s == 12
+    assert workflow.runners.opentrons.client.health_timeout_s == 2
     assert workflow.runners.sharc.station.client.base_url == "http://settings-sharc.example:8000"
     assert workflow.runners.sharc.station.client.timeout_s == 34
+    assert workflow.runners.sharc.station.client.health_timeout_s == 2
     assert workflow.runners.asmi.station.client.base_url == "http://settings-asmi.example:8000"
     assert workflow.runners.asmi.station.client.timeout_s == 56
+    assert workflow.runners.asmi.station.client.health_timeout_s == 2

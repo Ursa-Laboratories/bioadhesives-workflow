@@ -36,6 +36,7 @@ class CubOSStationClient:
         gantry_config_yaml: str,
         deck_config_yaml: str,
         timeout_s: float = 900.0,
+        health_timeout_s: float = 3.0,
         mock_mode: bool = False,
         session: Any | None = None,
     ):
@@ -44,11 +45,12 @@ class CubOSStationClient:
         self.gantry_config_yaml = gantry_config_yaml
         self.deck_config_yaml = deck_config_yaml
         self.timeout_s = timeout_s
+        self.health_timeout_s = health_timeout_s
         self.mock_mode = mock_mode
         self._session = session or new_session()
 
     def health(self) -> dict[str, Any]:
-        return get_json(self._session, f"{self.base_url}/health", timeout=15.0)
+        return get_json(self._session, f"{self.base_url}/health", timeout=self.health_timeout_s)
 
     def validate_protocol(self, protocol_yaml: str) -> dict[str, Any]:
         return post_json(

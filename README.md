@@ -63,6 +63,19 @@ must still be reachable, but CubOS should not move hardware.
 `--skip-opentrons-fill` uses the existing Opentrons placeholder client and marks
 the Opentrons health line as an intentional placeholder.
 
+## Health Check
+
+To check Opentrons, SHARC, and ASMI without running the workflow:
+
+```bash
+python -m manual_bioadhesives_workcell.health_check
+```
+
+The command exits `0` when all machines pass health checks and `1` if any check
+fails. It uses a `3` second per-machine timeout by default; adjust that with
+`--timeout-s`. Use `--skip-opentrons-fill` to use the Opentrons placeholder
+health path.
+
 ## Configuration
 
 The workflow reads device URLs from `manual_bioadhesives_workcell/settings.py`:
@@ -196,6 +209,7 @@ results/<experiment_id>_manual_joined_asmi.csv
 
 ```bash
 python -m manual_bioadhesives_workcell --help
+python -m manual_bioadhesives_workcell.health_check --help
 python -m pytest tests -q
 python -m py_compile manual_bioadhesives_workcell/*.py
 ```

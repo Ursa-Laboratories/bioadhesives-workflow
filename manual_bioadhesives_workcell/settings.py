@@ -45,6 +45,8 @@ ASMI_PORT = 8000
 ASMI_BASE_URL = f"http://{ASMI_HOST}:{ASMI_PORT}"
 ASMI_TIMEOUT_S = 900.0
 
+HEALTH_TIMEOUT_S = 3.0
+
 # Define what reagent is in each source tube rack well.
 REAGENT_SOURCES = {
     "pegda_a": "A1",
@@ -99,6 +101,7 @@ class ManualWorkflowSettings:
     opentrons_timeout_s: float = OPENTRONS_TIMEOUT_S
     sharc_timeout_s: float = SHARC_TIMEOUT_S
     asmi_timeout_s: float = ASMI_TIMEOUT_S
+    health_timeout_s: float = HEALTH_TIMEOUT_S
     mock_stations: bool = MOCK_STATIONS
     skip_opentrons_fill: bool = SKIP_OPENTRONS_FILL
 
@@ -118,7 +121,11 @@ def build_workflow(
     opentrons_client = (
         OpentronsClient(None)
         if settings.skip_opentrons_fill
-        else _opentrons_client(settings.opentrons_base_url, settings.opentrons_timeout_s)
+        else _opentrons_client(
+            settings.opentrons_base_url,
+            settings.opentrons_timeout_s,
+            settings.health_timeout_s,
+        )
     )
     runners = ManualRunners(
         opentrons=OpentronsFillRunner(opentrons_client),
@@ -129,6 +136,7 @@ def build_workflow(
                 SHARC_PROTOCOL,
                 base_url=settings.sharc_base_url,
                 timeout_s=settings.sharc_timeout_s,
+                health_timeout_s=settings.health_timeout_s,
             ),
             mock_mode=settings.mock_stations,
         ),
@@ -139,6 +147,7 @@ def build_workflow(
                 ASMI_PROTOCOL,
                 base_url=settings.asmi_base_url,
                 timeout_s=settings.asmi_timeout_s,
+                health_timeout_s=settings.health_timeout_s,
             ),
             mock_mode=settings.mock_stations,
         ),
@@ -161,6 +170,7 @@ def _station_bundle_with_protocol(
     *,
     base_url: str,
     timeout_s: float,
+    health_timeout_s: float,
 ) -> StationBundle:
     station_cfg = cfg.raw["stations"][station_name]
     gantry_yaml = cfg.abs_path(station_cfg["gantry_config"]).read_text()
@@ -171,6 +181,7 @@ def _station_bundle_with_protocol(
         gantry_config_yaml=gantry_yaml,
         deck_config_yaml=deck_yaml,
         timeout_s=float(timeout_s),
+        health_timeout_s=float(health_timeout_s),
         mock_mode=cfg.mock_mode,
     )
     return StationBundle(
@@ -179,10 +190,11 @@ def _station_bundle_with_protocol(
     )
 
 
-def _opentrons_client(base_url: str | None, timeout_s: float) -> OpentronsClient:
+def _opentrons_client(base_url: str | None, timeout_s: float, health_timeout_s: float) -> OpentronsClient:
     return OpentronsClient(
         base_url,
         timeout_s=float(timeout_s),
+        health_timeout_s=float(health_timeout_s),
     )
 
 

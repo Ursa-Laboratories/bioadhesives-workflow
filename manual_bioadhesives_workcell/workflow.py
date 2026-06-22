@@ -92,8 +92,9 @@ class ManualBioadhesivesWorkflow:
             HealthTarget("SHARC station", self.runners.sharc.health),
             HealthTarget("ASMI station", self.runners.asmi.health),
         ]
-        results = run_health_checks(targets)
+        results = run_health_checks(targets, progress_fn=self.output_fn)
         self.output_fn(format_health_report(results))
+
         failed = failed_health_names(results)
         if failed:
             self.output_fn(f"Aborting: offline or unready machine(s): {', '.join(failed)}")

@@ -30,3 +30,12 @@ def test_busy_health_is_not_ok():
 
     assert failed_health_names(results) == ["ASMI station"]
     assert "busy with r1" in format_health_report(results)
+
+
+def test_opentrons_full_status_is_ok():
+    results = run_health_checks(
+        [HealthTarget("Opentrons Flex", lambda: {"status": "full", "device": "flex"})]
+    )
+
+    assert failed_health_names(results) == []
+    assert "✅ Opentrons Flex" in format_health_report(results)

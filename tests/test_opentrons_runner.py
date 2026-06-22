@@ -1,5 +1,8 @@
 import pytest
+import requests
 
+from manual_bioadhesives_workcell.http_client import HttpError
+from manual_bioadhesives_workcell.machines.opentrons_client import OpentronsClient
 from manual_bioadhesives_workcell.machines.opentrons_runner import OpentronsFillRunner
 
 
@@ -13,6 +16,15 @@ class FakeOpentronsClient:
     def run_fill(self, **kwargs):
         self.calls.append(kwargs)
         return {"success": True}
+
+
+class TimeoutSession:
+    def __init__(self):
+        self.calls = []
+
+    def get(self, url, **kwargs):
+        self.calls.append((url, kwargs))
+        raise requests.exceptions.ConnectTimeout("timed out")
 
 
 def test_opentrons_runner_requires_settings_in_params():
@@ -71,4 +83,16 @@ def test_opentrons_runner_passes_settings_without_fallbacks():
             "plate_slot": "D1",
             "plate_labware": "corning_96_wellplate_360ul_flat",
         }
+    ]
+
+
+def test_opentrons_health_transport_failure_does_not_try_fallback():
+    session = TimeoutSession()
+    client = OpentronsClient("http://opentrons.example", health_timeout_s=0.25, session=session)
+
+    with pytest.raises(HttpError, match="/health"):
+        client.health()
+
+    assert session.calls == [
+        ("http://opentrons.example/health", {"timeout": 0.25}),
     ]

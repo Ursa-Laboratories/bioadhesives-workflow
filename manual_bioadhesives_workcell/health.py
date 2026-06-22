@@ -21,9 +21,15 @@ class HealthResult:
     error: str | None = None
 
 
-def run_health_checks(targets: Sequence[HealthTarget]) -> list[HealthResult]:
+def run_health_checks(
+    targets: Sequence[HealthTarget],
+    *,
+    progress_fn: Callable[[str], None] | None = None,
+) -> list[HealthResult]:
     results: list[HealthResult] = []
     for target in targets:
+        if progress_fn:
+            progress_fn(f"Checking {target.name}...")
         try:
             payload = target.call()
         except Exception as exc:  # noqa: BLE001 - report every machine, not just first failure
@@ -59,7 +65,7 @@ def _payload_status(payload: Mapping[str, Any]) -> tuple[bool, str]:
     if payload.get("busy"):
         return False, f"online but busy with {payload.get('current_run_id') or 'unknown run'}"
     status = str(payload.get("status") or "").lower()
-    ok = status in ("", "ok", "running", "healthy")
+    ok = status in ("", "ok", "running", "healthy", "full")
     return ok, _health_detail(payload)
 
 

@@ -34,12 +34,14 @@ class OpentronsClient:
         *,
         timeout_s: float = 600.0,
         poll_interval_s: float = 2.0,
+        health_timeout_s: float = 3.0,
         api_version: str = "*",
         session: Any | None = None,
     ):
         self.base_url = base_url.rstrip("/") if base_url else None
         self.timeout_s = timeout_s
         self.poll_interval_s = poll_interval_s
+        self.health_timeout_s = health_timeout_s
         self.api_version = api_version
         self._session = session or new_session()
 
@@ -47,9 +49,11 @@ class OpentronsClient:
         if not self.base_url:
             return {"status": "placeholder", "device": "opentrons", "base_url": self.base_url}
         try:
-            return get_json(self._session, f"{self.base_url}/health", timeout=15.0)
-        except HttpError:
-            return self._get_json("/networking/status", timeout=15.0)
+            return get_json(self._session, f"{self.base_url}/health", timeout=self.health_timeout_s)
+        except HttpError as exc:
+            if _is_transport_error(exc):
+                raise
+            return self._get_json("/networking/status", timeout=self.health_timeout_s)
 
     def run_fill(
         self,
@@ -297,3 +301,7 @@ def _run_status(payload: dict[str, Any]) -> str | None:
     if payload.get("status"):
         return str(payload["status"])
     return None
+
+
+def _is_transport_error(exc: HttpError) -> bool:
+    return " failed:" in str(exc)

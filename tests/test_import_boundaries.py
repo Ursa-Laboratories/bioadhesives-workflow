@@ -43,3 +43,16 @@ def test_module_entrypoint_runs_from_repo_root():
 
     assert result.returncode == 0
     assert "Run the bioadhesives workflow" in result.stdout
+
+
+def test_health_check_entrypoint_runs_from_repo_root():
+    result = subprocess.run(
+        [sys.executable, "-m", "manual_bioadhesives_workcell.health_check", "--help"],
+        cwd=REPO_ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0
+    assert "Check Opentrons, SHARC, and ASMI health" in result.stdout

@@ -6,15 +6,16 @@ from manual_bioadhesives_workcell.workflow import ManualBioadhesivesWorkflow, Ma
 
 
 class FakeRunner:
-    def __init__(self, name, *, fail_health=False):
+    def __init__(self, name, *, fail_health=False, health_status="ok"):
         self.name = name
         self.fail_health = fail_health
+        self.health_status = health_status
         self.calls = []
 
     def health(self):
         if self.fail_health:
             raise RuntimeError("offline")
-        return {"status": "ok", "device": self.name}
+        return {"status": self.health_status, "device": self.name}
 
     def run(self, *, well, params, run_id):
         self.calls.append((well, run_id, dict(params)))
@@ -112,3 +113,22 @@ def test_workflow_aborts_before_prompts_when_health_fails(tmp_path):
     assert opentrons.calls == []
     assert sharc.calls == []
     assert asmi.calls == []
+
+
+def test_workflow_accepts_opentrons_full_health_status(tmp_path):
+    opentrons = FakeRunner("opentrons", health_status="full")
+    sharc = FakeRunner("sharc")
+    asmi = FakeRunner("asmi")
+    printed = []
+
+    workflow = ManualBioadhesivesWorkflow(
+        experiment=_experiment(),
+        runners=ManualRunners(opentrons=opentrons, sharc=sharc, asmi=asmi),
+        db_path=tmp_path / "results.db",
+        output_csv=tmp_path / "joined.csv",
+        input_fn=lambda _prompt: "n",
+        output_fn=printed.append,
+    )
+
+    assert workflow.run() == 130
+    assert any("✅ Opentrons Flex" in line and "status=full" in line for line in printed)
