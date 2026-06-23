@@ -111,7 +111,7 @@ class ManualBioadhesivesWorkflow:
 
     def prompt_move_to_sharc(self) -> None:
         self.output_fn("4. Prompt for manual move to SHARC")
-        if not self._confirm("Manual move to SHARC complete. Press y to run SHARC [y/N]: "):
+        if not self._confirm("Move wellplate to SHARC now. When ready, press y to run SHARC [y/N]: "):
             raise OperatorAbort("operator stopped before SHARC")
 
     def run_sharc_code(self, results: ResultStore) -> None:
@@ -120,7 +120,7 @@ class ManualBioadhesivesWorkflow:
 
     def prompt_move_to_asmi(self) -> None:
         self.output_fn("6. Prompt to move to ASMI")
-        if not self._confirm("Manual move to ASMI complete. Press y to run ASMI [y/N]: "):
+        if not self._confirm("Move wellplate to ASMI now. When ready, press y to run ASMI [y/N]: "):
             raise OperatorAbort("operator stopped before ASMI")
 
     def run_asmi_code(self, results: ResultStore) -> None:
