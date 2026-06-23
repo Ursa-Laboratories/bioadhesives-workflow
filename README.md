@@ -154,12 +154,15 @@ REAGENT_SOURCES = {
 Then define what reagent goes into each well plate well:
 
 ```python
+UV_INTENSITY = 1
+UV_EXPOSURE_S = 11.0
+
 WORKFLOW_WELLS = [
     WorkflowWell(
         target_well="A1",
         source_well=REAGENT_SOURCES["pegda_a"],
         formulation="pegda_a",
-        uv_exposure_s=11.0,
+        uv_exposure_s=UV_EXPOSURE_S,
     ),
 ]
 ```

@@ -53,6 +53,10 @@ REAGENT_SOURCES = {
     "pegda_a": "A1",
 }
 
+# SHARC Settings
+UV_INTENSITY = 1
+UV_EXPOSURE_S = 11.0
+
 # Define what goes into the plate. Each WorkflowWell maps a reagent source tube
 # to a target well on the well plate and the SHARC cure time for that well.
 WORKFLOW_WELLS = [
@@ -60,7 +64,7 @@ WORKFLOW_WELLS = [
         target_well="A1",
         source_well=REAGENT_SOURCES["pegda_a"],
         formulation="pegda_a",
-        uv_exposure_s=11.0,
+        uv_exposure_s=UV_EXPOSURE_S,
     ),
 ]
 
@@ -74,9 +78,6 @@ OPENTRONS_VOLUME_UL = 100
 OPENTRONS_FLOW_RATE_UL_MIN = 150 / 60
 OPENTRONS_AIR_EXPULSION_UL = 20
 OPENTRONS_TIP_LIFT_HEIGHT_MM = 8
-
-#SHARC Settings
-UV_INTENSITY = 1
 
 # ASMI Settings
 ASMI_MEASUREMENT_HEIGHT = -3.0

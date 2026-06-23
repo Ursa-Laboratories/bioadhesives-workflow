@@ -9,7 +9,9 @@ from manual_bioadhesives_workcell.settings import (
     OPENTRONS_PORT,
     SHARC_PORT,
     SHARC_PROTOCOL,
+    UV_EXPOSURE_S,
     ManualWorkflowSettings,
+    WORKFLOW_WELLS,
     build_workflow,
 )
 
@@ -22,6 +24,10 @@ def test_default_ports_are_defined_in_settings_and_match_station_worker_configs(
 
 def test_default_opentrons_flow_rate_matches_pilot_protocol():
     assert OPENTRONS_FLOW_RATE_UL_MIN == 2.5
+
+
+def test_default_workflow_wells_use_sharc_exposure_setting():
+    assert WORKFLOW_WELLS[0].uv_exposure_s == UV_EXPOSURE_S
 
 
 def test_default_workflow_builds_from_repo_root_config():
