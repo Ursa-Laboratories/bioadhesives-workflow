@@ -275,7 +275,7 @@ requirements = {{"robotType": "Flex"}}
 custom_tube_rack = {{
     "ordering": [["A1", "B1"], ["A2", "B2"], ["A3", "B3"]],
     "brand": {{"brand": "Custom", "brandId": []}},
-    "metadata": {{"displayName": "Custom 6 Tube Rack with Generic 20 mL", "displayCategory": "tubeRack", "displayVolumeUnits": "uL", "tags": []}},
+    "metadata": {{"displayName": "Custom 6 Tube Rack with Generic 20 mL", "displayCategory": "tubeRack", "displayVolumeUnits": "µL", "tags": []}},
     "dimensions": {{"xDimension": 127, "yDimension": 85, "zDimension": 130}},
     "wells": {{
         "A1": {{"depth": 50, "totalLiquidVolume": 20000, "shape": "circular", "diameter": 30, "x": 25, "y": 62, "z": 75}},

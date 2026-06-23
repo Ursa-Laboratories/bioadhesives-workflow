@@ -11,7 +11,7 @@ def _seed_experiment(db_path, *, asmi_result):
         wells=[WorkflowWell(target_well="A1", source_well="B1", uv_exposure_s=11.0)],
         shared_params={
             "volume_ul": 100,
-            "flow_rate_ul_min": 150,
+            "flow_rate_ul_min": 150 / 60,
             "uv_intensity": 1,
             "asmi_scalar": {"measurement_height": -3.0, "indentation_limit_height": -5.0},
             "asmi_method_kwargs": {"force_limit": 3.0, "step_size": 0.01},

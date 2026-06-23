@@ -17,6 +17,7 @@ class FakeOpentronsClient:
         self.calls.append(kwargs)
         return {"success": True}
 
+
 class TimeoutSession:
     def __init__(self):
         self.calls = []
@@ -36,7 +37,7 @@ def test_opentrons_runner_requires_settings_in_params():
             params={
                 "volume_ul": 100,
                 "source_well": "A1",
-                "flow_rate_ul_min": 150,
+                "flow_rate_ul_min": 150 / 60,
                 "air_expulsion_ul": 20,
                 "tip_lift_height_mm": 8,
                 "tip_rack_slot": "A2",
@@ -57,7 +58,7 @@ def test_opentrons_runner_passes_settings_without_fallbacks():
             "volume_ul": 100,
             "source_well": "A1",
             "formulation": "pegda_a",
-            "flow_rate_ul_min": 150,
+            "flow_rate_ul_min": 150 / 60,
             "air_expulsion_ul": 20,
             "tip_lift_height_mm": 8,
             "tip_rack_slot": "A2",
@@ -74,7 +75,7 @@ def test_opentrons_runner_passes_settings_without_fallbacks():
             "source_well": "A1",
             "formulation": "pegda_a",
             "run_id": "run-1",
-            "flow_rate_ul_min": 150,
+            "flow_rate_ul_min": 2.5,
             "air_expulsion_ul": 20,
             "tip_lift_height_mm": 8,
             "tip_rack_slot": "A2",
@@ -99,10 +100,13 @@ def test_generated_fill_protocol_uses_current_custom_tube_rack_geometry():
         plate_labware="corning_96_wellplate_360ul_flat",
     )
 
+    assert '"displayVolumeUnits": "µL"' in protocol
     assert '"zDimension": 130' in protocol
     assert protocol.count('"depth": 50') == 6
     assert protocol.count('"z": 75') == 6
     assert "p1000.flow_rate.aspirate = 2.5" in protocol
+    assert "p1000.flow_rate.dispense = 2.5" in protocol
+    assert "0.041666" not in protocol
 
 
 def test_opentrons_health_transport_failure_does_not_try_fallback():
