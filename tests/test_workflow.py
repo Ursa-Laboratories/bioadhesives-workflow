@@ -19,6 +19,13 @@ class FakeRunner:
 
     def run(self, *, well, params, run_id):
         self.calls.append((well, run_id, dict(params)))
+        if self.name == "opentrons":
+            return {
+                "success": True,
+                "source_well": params["source_well"],
+                "well": well,
+                "volume_dispensed": params["volume_ul"],
+            }
         if self.name == "sharc":
             return {"success": True, "results": [None, {"exposure_time": params["uv_exposure_s"]}]}
         return {
@@ -37,11 +44,6 @@ class FakeRunner:
                 }
             ],
         }
-
-    def run_protocol(self, *, run_id):
-        self.calls.append(("pilot", run_id, {}))
-        return {"success": True, "opentrons_run_id": "robot-run-1", "status": "succeeded"}
-
 
 def _experiment():
     return build_experiment(
@@ -75,7 +77,7 @@ def test_workflow_runs_stages_with_manual_prompts_and_no_arm_rows(tmp_path):
 
     assert workflow.run() == 0
 
-    assert [call[1] for call in opentrons.calls] == ["manual-bio:opentrons:pilot"]
+    assert [call[1] for call in opentrons.calls] == ["manual-bio:A1:fill"]
     assert [call[1] for call in sharc.calls] == ["manual-bio:A1:sharc"]
     assert [call[1] for call in asmi.calls] == ["manual-bio:A1:asmi"]
     assert any("✅ Opentrons Flex" in line for line in printed)

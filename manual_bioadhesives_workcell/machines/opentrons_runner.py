@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Any, Mapping
 
 from .opentrons_client import OpentronsClient
@@ -11,20 +10,14 @@ from .opentrons_client import OpentronsClient
 class OpentronsFillRunner:
     name = "Opentrons Flex"
 
-    def __init__(self, client: OpentronsClient, *, protocol_path: str | Path | None = None):
+    def __init__(self, client: OpentronsClient):
         self.client = client
-        self.protocol_path = Path(protocol_path) if protocol_path is not None else None
 
     def health(self) -> Mapping[str, Any]:
         payload = self.client.health()
         if payload.get("status") == "placeholder":
             return {"status": "ok", "device": "opentrons-placeholder", "skipped": True}
         return payload
-
-    def run_protocol(self, *, run_id: str) -> dict[str, Any]:
-        if self.protocol_path is None:
-            raise ValueError("missing Opentrons protocol path")
-        return self.client.run_protocol_file(self.protocol_path, run_id=run_id)
 
     def run(self, *, well: str, params: Mapping[str, Any], run_id: str) -> dict[str, Any]:
         return self.client.run_fill(

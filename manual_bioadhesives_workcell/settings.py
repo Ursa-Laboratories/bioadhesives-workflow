@@ -24,7 +24,6 @@ PACKAGE_ROOT = Path(__file__).resolve().parent
 EXPERIMENT_ID = "bioadhesives_manual_no_arm"
 CONTROLLER_CONFIG = REPO_ROOT / "configs" / "controller.yaml"
 MACHINES_ROOT = PACKAGE_ROOT / "machines"
-OPENTRONS_PROTOCOL = REPO_ROOT / "opentrons_pilot.py"
 SHARC_PROTOCOL = MACHINES_ROOT / "protocols" / "sharc_uv_one_well.yaml"
 ASMI_PROTOCOL = MACHINES_ROOT / "protocols" / "asmi_indentation_a1.yaml"
 
@@ -57,17 +56,6 @@ REAGENT_SOURCES = {
 UV_INTENSITY = 1
 UV_EXPOSURE_S = 11.0
 
-# Define what goes into the plate. Each WorkflowWell maps a reagent source tube
-# to a target well on the well plate and the SHARC cure time for that well.
-WORKFLOW_WELLS = [
-    WorkflowWell(
-        target_well="A1",
-        source_well=REAGENT_SOURCES["pegda_a"],
-        formulation="pegda_a",
-        uv_exposure_s=UV_EXPOSURE_S,
-    ),
-]
-
 # Define the Opentrons deck layout and plate labware used by the generated fill
 # protocol.
 OPENTRONS_TIP_RACK_SLOT = "A2"
@@ -90,13 +78,22 @@ ASMI_MEASURE_WITH_RETURN = False
 MOCK_STATIONS = False
 SKIP_OPENTRONS_FILL = False
 
+# Define what goes into the plate. Each WorkflowWell maps a reagent source tube
+# to a target well on the well plate and the SHARC cure time for that well.
+WORKFLOW_WELLS = [
+    WorkflowWell(
+        target_well="A1",
+        source_well=REAGENT_SOURCES["pegda_a"],
+        formulation="pegda_a",
+        uv_exposure_s=UV_EXPOSURE_S,
+    ),
+]
 
 @dataclass(frozen=True)
 class ManualWorkflowSettings:
     experiment_id: str = EXPERIMENT_ID
     controller_config: Path = CONTROLLER_CONFIG
     output_csv: Path | None = None
-    opentrons_protocol: Path = OPENTRONS_PROTOCOL
     wells: list[WorkflowWell] | None = None
     opentrons_base_url: str | None = OPENTRONS_BASE_URL
     sharc_base_url: str = SHARC_BASE_URL
@@ -131,7 +128,7 @@ def build_workflow(
         )
     )
     runners = ManualRunners(
-        opentrons=OpentronsFillRunner(opentrons_client, protocol_path=settings.opentrons_protocol),
+        opentrons=OpentronsFillRunner(opentrons_client),
         sharc=SharcCureRunner(
             _station_bundle_with_protocol(
                 cfg,

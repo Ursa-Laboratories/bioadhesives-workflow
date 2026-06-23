@@ -5,7 +5,6 @@ from manual_bioadhesives_workcell.settings import (
     ASMI_PROTOCOL,
     CONTROLLER_CONFIG,
     OPENTRONS_FLOW_RATE_UL_MIN,
-    OPENTRONS_PROTOCOL,
     OPENTRONS_PORT,
     SHARC_PORT,
     SHARC_PROTOCOL,
@@ -37,7 +36,6 @@ def test_default_workflow_builds_from_repo_root_config():
     assert workflow.db_path.name == "polymer_indent.db"
     assert workflow.runners.sharc.station.client.gantry_config_yaml
     assert workflow.runners.asmi.station.client.deck_config_yaml
-    assert workflow.runners.opentrons.protocol_path == OPENTRONS_PROTOCOL
 
 
 def test_build_workflow_uses_package_settings_not_controller_endpoint_values(tmp_path):

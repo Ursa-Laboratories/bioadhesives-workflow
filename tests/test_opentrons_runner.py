@@ -17,11 +17,6 @@ class FakeOpentronsClient:
         self.calls.append(kwargs)
         return {"success": True}
 
-    def run_protocol_file(self, protocol_path, *, run_id):
-        self.calls.append({"protocol_path": protocol_path, "run_id": run_id})
-        return {"success": True}
-
-
 class TimeoutSession:
     def __init__(self):
         self.calls = []
@@ -88,17 +83,6 @@ def test_opentrons_runner_passes_settings_without_fallbacks():
             "plate_labware": "corning_96_wellplate_360ul_flat",
         }
     ]
-
-
-def test_opentrons_runner_runs_configured_protocol_file(tmp_path):
-    protocol = tmp_path / "opentrons_pilot.py"
-    protocol.write_text("def run(protocol):\n    pass\n")
-    client = FakeOpentronsClient()
-    runner = OpentronsFillRunner(client, protocol_path=protocol)
-
-    assert runner.run_protocol(run_id="run-1") == {"success": True}
-
-    assert client.calls == [{"protocol_path": protocol, "run_id": "run-1"}]
 
 
 def test_generated_fill_protocol_uses_current_custom_tube_rack_geometry():
