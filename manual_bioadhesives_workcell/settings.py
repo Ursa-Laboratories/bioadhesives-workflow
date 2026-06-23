@@ -24,6 +24,7 @@ PACKAGE_ROOT = Path(__file__).resolve().parent
 EXPERIMENT_ID = "bioadhesives_manual_no_arm"
 CONTROLLER_CONFIG = REPO_ROOT / "configs" / "controller.yaml"
 MACHINES_ROOT = PACKAGE_ROOT / "machines"
+OPENTRONS_PROTOCOL = REPO_ROOT / "opentrons_pilot.py"
 SHARC_PROTOCOL = MACHINES_ROOT / "protocols" / "sharc_uv_one_well.yaml"
 ASMI_PROTOCOL = MACHINES_ROOT / "protocols" / "asmi_indentation_a1.yaml"
 
@@ -70,7 +71,7 @@ OPENTRONS_TUBE_RACK_SLOT = "B2"
 OPENTRONS_PLATE_SLOT = "D1"
 OPENTRONS_PLATE_LABWARE = "corning_96_wellplate_360ul_flat"
 OPENTRONS_VOLUME_UL = 100
-OPENTRONS_FLOW_RATE_UL_MIN = 150
+OPENTRONS_FLOW_RATE_UL_MIN = 150 / 60
 OPENTRONS_AIR_EXPULSION_UL = 20
 OPENTRONS_TIP_LIFT_HEIGHT_MM = 8
 
@@ -94,6 +95,7 @@ class ManualWorkflowSettings:
     experiment_id: str = EXPERIMENT_ID
     controller_config: Path = CONTROLLER_CONFIG
     output_csv: Path | None = None
+    opentrons_protocol: Path = OPENTRONS_PROTOCOL
     wells: list[WorkflowWell] | None = None
     opentrons_base_url: str | None = OPENTRONS_BASE_URL
     sharc_base_url: str = SHARC_BASE_URL
@@ -128,7 +130,7 @@ def build_workflow(
         )
     )
     runners = ManualRunners(
-        opentrons=OpentronsFillRunner(opentrons_client),
+        opentrons=OpentronsFillRunner(opentrons_client, protocol_path=settings.opentrons_protocol),
         sharc=SharcCureRunner(
             _station_bundle_with_protocol(
                 cfg,

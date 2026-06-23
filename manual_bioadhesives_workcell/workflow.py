@@ -22,9 +22,19 @@ class MachineRunner(Protocol):
         ...
 
 
+class OpentronsRunner(Protocol):
+    name: str
+
+    def health(self) -> dict[str, Any]:
+        ...
+
+    def run_protocol(self, *, run_id: str) -> dict[str, Any]:
+        ...
+
+
 @dataclass(frozen=True)
 class ManualRunners:
-    opentrons: MachineRunner
+    opentrons: OpentronsRunner
     sharc: MachineRunner
     asmi: MachineRunner
 
@@ -107,7 +117,42 @@ class ManualBioadhesivesWorkflow:
 
     def run_opentrons_code(self, results: ResultStore) -> None:
         self.output_fn("3. Run Opentrons code")
-        self._run_stage(results, runner=self.runners.opentrons, kind="opentrons_fill", station="opentrons", tag="fill")
+        script_run_id = f"{self.experiment.id}:opentrons:pilot"
+        started = time.time()
+        try:
+            response = self.runners.opentrons.run_protocol(run_id=script_run_id)
+            success = _require_success(response, "opentrons_fill")
+        except Exception as exc:
+            finished = time.time()
+            for well, _params in self.experiment.items():
+                results.record_run(
+                    run_id=f"{self.experiment.id}:{well}:fill",
+                    experiment_id=self.experiment.id,
+                    well=well,
+                    kind="opentrons_fill",
+                    station="opentrons",
+                    success=False,
+                    started_at=started,
+                    finished_at=finished,
+                    error=f"{type(exc).__name__}: {exc}",
+                )
+                results.set_well_status(self.experiment.id, well, "failed", error=repr(exc))
+            raise
+
+        finished = time.time()
+        for well, params in self.experiment.items():
+            results.record_run(
+                run_id=f"{self.experiment.id}:{well}:fill",
+                experiment_id=self.experiment.id,
+                well=well,
+                kind="opentrons_fill",
+                station="opentrons",
+                success=success,
+                started_at=started,
+                finished_at=finished,
+                result=_opentrons_result_for_well(response, well, params, script_run_id),
+                artifacts=response.get("artifacts"),
+            )
 
     def prompt_move_to_sharc(self) -> None:
         self.output_fn("4. Prompt for manual move to SHARC")
@@ -208,6 +253,21 @@ def _record_step(
         result=response.get("results", response),
         artifacts=response.get("artifacts"),
     )
+
+
+def _opentrons_result_for_well(
+    response: dict[str, Any],
+    well: str,
+    params: dict[str, Any],
+    script_run_id: str,
+) -> dict[str, Any]:
+    result = dict(response)
+    result.setdefault("source_well", params.get("source_well"))
+    result.setdefault("well", well)
+    result.setdefault("volume_dispensed", params.get("volume_ul"))
+    result.setdefault("formulation", params.get("formulation"))
+    result["pilot_run_id"] = script_run_id
+    return result
 
 
 def _require_success(response: dict[str, Any], kind: str) -> bool:

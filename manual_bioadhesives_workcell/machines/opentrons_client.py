@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import time
+from pathlib import Path
 from typing import Any
 
 from ..http_client import HttpError, get_json, new_session
@@ -99,6 +100,26 @@ class OpentronsClient:
             "timestamp": time.time(),
         }
 
+    def run_protocol_file(self, protocol_path: str | Path, *, run_id: str | None = None) -> dict[str, Any]:
+        path = Path(protocol_path)
+        protocol_text = path.read_text()
+        if self.base_url:
+            return self._run_uploaded_protocol(
+                protocol_text,
+                run_id=run_id,
+                protocol_filename=path.name,
+                protocol_path=str(path),
+            )
+        return {
+            "success": True,
+            "placeholder": True,
+            "run_id": run_id,
+            "protocol_filename": path.name,
+            "protocol_path": str(path),
+            "protocol_size_bytes": len(protocol_text.encode("utf-8")),
+            "timestamp": time.time(),
+        }
+
     def _run_flex_fill(
         self,
         *,
@@ -127,7 +148,28 @@ class OpentronsClient:
             plate_slot=plate_slot,
             plate_labware=plate_labware,
         )
-        protocol_id = self._upload_protocol(protocol_text, key=run_id)
+        payload = self._run_uploaded_protocol(
+            protocol_text,
+            run_id=run_id,
+            protocol_filename="bioadhesives_one_well.py",
+        )
+        payload.update({
+            "source_well": source_well,
+            "well": well,
+            "volume_dispensed": volume_ul,
+            "formulation": formulation,
+        })
+        return payload
+
+    def _run_uploaded_protocol(
+        self,
+        protocol_text: str,
+        *,
+        run_id: str | None,
+        protocol_filename: str,
+        protocol_path: str | None = None,
+    ) -> dict[str, Any]:
+        protocol_id = self._upload_protocol(protocol_text, key=run_id, filename=protocol_filename)
         robot_run_id = self._create_run(protocol_id)
         self._play_run(robot_run_id)
         final = self._poll_run(robot_run_id)
@@ -135,23 +177,22 @@ class OpentronsClient:
         payload = {
             "success": success,
             "placeholder": False,
-            "source_well": source_well,
-            "well": well,
-            "volume_dispensed": volume_ul,
-            "formulation": formulation,
             "run_id": run_id,
+            "protocol_filename": protocol_filename,
             "opentrons_protocol_id": protocol_id,
             "opentrons_run_id": robot_run_id,
             "status": _run_status(final),
             "final_run": final,
             "timestamp": time.time(),
         }
+        if protocol_path is not None:
+            payload["protocol_path"] = protocol_path
         if not success:
             raise OpentronsRunError(robot_run_id, final)
         return payload
 
-    def _upload_protocol(self, protocol_text: str, *, key: str | None) -> str:
-        files = {"files": ("bioadhesives_one_well.py", protocol_text.encode("utf-8"), "text/x-python")}
+    def _upload_protocol(self, protocol_text: str, *, key: str | None, filename: str) -> str:
+        files = {"files": (filename, protocol_text.encode("utf-8"), "text/x-python")}
         data = {"key": key} if key else None
         try:
             response = self._session.post(
@@ -235,14 +276,14 @@ custom_tube_rack = {{
     "ordering": [["A1", "B1"], ["A2", "B2"], ["A3", "B3"]],
     "brand": {{"brand": "Custom", "brandId": []}},
     "metadata": {{"displayName": "Custom 6 Tube Rack with Generic 20 mL", "displayCategory": "tubeRack", "displayVolumeUnits": "uL", "tags": []}},
-    "dimensions": {{"xDimension": 127, "yDimension": 85, "zDimension": 135}},
+    "dimensions": {{"xDimension": 127, "yDimension": 85, "zDimension": 130}},
     "wells": {{
-        "A1": {{"depth": 58, "totalLiquidVolume": 20000, "shape": "circular", "diameter": 30, "x": 25, "y": 62, "z": 65}},
-        "B1": {{"depth": 58, "totalLiquidVolume": 20000, "shape": "circular", "diameter": 30, "x": 25, "y": 22, "z": 65}},
-        "A2": {{"depth": 58, "totalLiquidVolume": 20000, "shape": "circular", "diameter": 30, "x": 65, "y": 62, "z": 65}},
-        "B2": {{"depth": 58, "totalLiquidVolume": 20000, "shape": "circular", "diameter": 30, "x": 65, "y": 22, "z": 65}},
-        "A3": {{"depth": 58, "totalLiquidVolume": 20000, "shape": "circular", "diameter": 30, "x": 105, "y": 62, "z": 65}},
-        "B3": {{"depth": 58, "totalLiquidVolume": 20000, "shape": "circular", "diameter": 30, "x": 105, "y": 22, "z": 65}}
+        "A1": {{"depth": 50, "totalLiquidVolume": 20000, "shape": "circular", "diameter": 30, "x": 25, "y": 62, "z": 75}},
+        "B1": {{"depth": 50, "totalLiquidVolume": 20000, "shape": "circular", "diameter": 30, "x": 25, "y": 22, "z": 75}},
+        "A2": {{"depth": 50, "totalLiquidVolume": 20000, "shape": "circular", "diameter": 30, "x": 65, "y": 62, "z": 75}},
+        "B2": {{"depth": 50, "totalLiquidVolume": 20000, "shape": "circular", "diameter": 30, "x": 65, "y": 22, "z": 75}},
+        "A3": {{"depth": 50, "totalLiquidVolume": 20000, "shape": "circular", "diameter": 30, "x": 105, "y": 62, "z": 75}},
+        "B3": {{"depth": 50, "totalLiquidVolume": 20000, "shape": "circular", "diameter": 30, "x": 105, "y": 22, "z": 75}}
     }},
     "groups": [{{"brand": {{"brand": "Generic", "brandId": []}}, "metadata": {{"wellBottomShape": "flat", "displayCategory": "tubeRack"}}, "wells": ["A1", "B1", "A2", "B2", "A3", "B3"]}}],
     "parameters": {{"format": "irregular", "quirks": [], "isTiprack": "False", "isMagneticModuleCompatible": "False", "loadName": "jeremy_custom_6_tube_rack_20ml"}},

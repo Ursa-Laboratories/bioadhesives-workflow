@@ -2,7 +2,7 @@ import pytest
 import requests
 
 from manual_bioadhesives_workcell.http_client import HttpError
-from manual_bioadhesives_workcell.machines.opentrons_client import OpentronsClient
+from manual_bioadhesives_workcell.machines.opentrons_client import OpentronsClient, render_viscous_fill_protocol
 from manual_bioadhesives_workcell.machines.opentrons_runner import OpentronsFillRunner
 
 
@@ -15,6 +15,10 @@ class FakeOpentronsClient:
 
     def run_fill(self, **kwargs):
         self.calls.append(kwargs)
+        return {"success": True}
+
+    def run_protocol_file(self, protocol_path, *, run_id):
+        self.calls.append({"protocol_path": protocol_path, "run_id": run_id})
         return {"success": True}
 
 
@@ -84,6 +88,37 @@ def test_opentrons_runner_passes_settings_without_fallbacks():
             "plate_labware": "corning_96_wellplate_360ul_flat",
         }
     ]
+
+
+def test_opentrons_runner_runs_configured_protocol_file(tmp_path):
+    protocol = tmp_path / "opentrons_pilot.py"
+    protocol.write_text("def run(protocol):\n    pass\n")
+    client = FakeOpentronsClient()
+    runner = OpentronsFillRunner(client, protocol_path=protocol)
+
+    assert runner.run_protocol(run_id="run-1") == {"success": True}
+
+    assert client.calls == [{"protocol_path": protocol, "run_id": "run-1"}]
+
+
+def test_generated_fill_protocol_uses_current_custom_tube_rack_geometry():
+    protocol = render_viscous_fill_protocol(
+        source_well="A1",
+        target_well="A1",
+        volume_ul=100,
+        flow_rate_ul_min=2.5,
+        air_expulsion_ul=20,
+        tip_lift_height_mm=8,
+        tip_rack_slot="A2",
+        tube_rack_slot="B2",
+        plate_slot="D1",
+        plate_labware="corning_96_wellplate_360ul_flat",
+    )
+
+    assert '"zDimension": 130' in protocol
+    assert protocol.count('"depth": 50') == 6
+    assert protocol.count('"z": 75') == 6
+    assert "p1000.flow_rate.aspirate = 2.5" in protocol
 
 
 def test_opentrons_health_transport_failure_does_not_try_fallback():

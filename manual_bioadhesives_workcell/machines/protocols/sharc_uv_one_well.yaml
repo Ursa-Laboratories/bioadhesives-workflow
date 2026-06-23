@@ -1,4 +1,5 @@
 protocol:
+- home
 - measure:
     position: plate_holder.plate.A1
     instrument: uv_curing
