@@ -41,6 +41,9 @@ class ManualBioadhesivesWorkflow:
         runners: ManualRunners,
         db_path: str | Path,
         output_csv: str | Path,
+        skip_opentrons_fill: bool = False,
+        skip_sharc: bool = False,
+        skip_asmi: bool = False,
         input_fn: Callable[[str], str] = input,
         output_fn: Callable[[str], None] = print,
     ):
@@ -48,6 +51,9 @@ class ManualBioadhesivesWorkflow:
         self.runners = runners
         self.db_path = Path(db_path)
         self.output_csv = Path(output_csv)
+        self.skip_opentrons_fill = skip_opentrons_fill
+        self.skip_sharc = skip_sharc
+        self.skip_asmi = skip_asmi
         self.input_fn = input_fn
         self.output_fn = output_fn
 
@@ -56,20 +62,31 @@ class ManualBioadhesivesWorkflow:
         if not self.health_check_all_machines():
             return 1
 
-        if not self.prompt_well_plate_in_opentrons():
-            self.output_fn("Aborted before hardware workflow started.")
-            return 130
+        if self.skip_opentrons_fill:
+            self.output_fn("2. Skip Opentrons fill")
+        else:
+            if not self.prompt_well_plate_in_opentrons():
+                self.output_fn("Aborted before hardware workflow started.")
+                return 130
 
         status = "completed"
         exit_code = 0
         with ResultStore(self.db_path) as results:
             results.start_experiment(self.experiment)
             try:
-                self.run_opentrons_code(results)
-                self.prompt_move_to_sharc()
-                self.run_sharc_code(results)
-                self.prompt_move_to_asmi()
-                self.run_asmi_code(results)
+                if not self.skip_opentrons_fill:
+                    self.run_opentrons_code(results)
+                if self.skip_sharc:
+                    self.output_fn("4. Skip SHARC")
+                else:
+                    self.prompt_move_to_sharc()
+                    self.run_sharc_code(results)
+                if self.skip_asmi:
+                    self.output_fn("6. Skip ASMI")
+                else:
+                    self.prompt_move_to_asmi()
+                    self.run_asmi_code(results)
+                self.mark_wells_done(results)
             except OperatorAbort as exc:
                 status = "aborted"
                 exit_code = 130
@@ -88,9 +105,18 @@ class ManualBioadhesivesWorkflow:
 
     def health_check_all_machines(self) -> bool:
         targets = [
-            HealthTarget("Opentrons Flex", self.runners.opentrons.health),
-            HealthTarget("SHARC station", self.runners.sharc.health),
-            HealthTarget("ASMI station", self.runners.asmi.health),
+            HealthTarget(
+                "Opentrons Flex",
+                _skipped_health("opentrons") if self.skip_opentrons_fill else self.runners.opentrons.health,
+            ),
+            HealthTarget(
+                "SHARC station",
+                _skipped_health("sharc") if self.skip_sharc else self.runners.sharc.health,
+            ),
+            HealthTarget(
+                "ASMI station",
+                _skipped_health("asmi") if self.skip_asmi else self.runners.asmi.health,
+            ),
         ]
         results = run_health_checks(targets, progress_fn=self.output_fn)
         self.output_fn(format_health_report(results))
@@ -125,7 +151,11 @@ class ManualBioadhesivesWorkflow:
 
     def run_asmi_code(self, results: ResultStore) -> None:
         self.output_fn("7. Run ASMI code")
-        self._run_stage(results, runner=self.runners.asmi, kind="asmi", station="asmi", tag="asmi", mark_done=True)
+        self._run_stage(results, runner=self.runners.asmi, kind="asmi", station="asmi", tag="asmi")
+
+    def mark_wells_done(self, results: ResultStore) -> None:
+        for well in self.experiment.wells:
+            results.set_well_status(self.experiment.id, well, "done")
 
     def collect_data_join_and_save_csv(self) -> None:
         self.output_fn("8. Collect data, join Opentrons/SHARC/ASMI data, and save CSV")
@@ -140,7 +170,6 @@ class ManualBioadhesivesWorkflow:
         kind: str,
         station: str,
         tag: str,
-        mark_done: bool = False,
     ) -> None:
         for well, params in self.experiment.items():
             run_id = f"{self.experiment.id}:{well}:{tag}"
@@ -158,9 +187,6 @@ class ManualBioadhesivesWorkflow:
             except Exception as exc:
                 results.set_well_status(self.experiment.id, well, "failed", error=repr(exc))
                 raise
-            if mark_done:
-                results.set_well_status(self.experiment.id, well, "done")
-
     def _confirm(self, prompt: str) -> bool:
         try:
             answer = self.input_fn(prompt)
@@ -214,3 +240,7 @@ def _require_success(response: dict[str, Any], kind: str) -> bool:
     if "success" not in response:
         raise RuntimeError(f"{kind} response missing 'success' field: {response!r}")
     return bool(response["success"])
+
+
+def _skipped_health(device: str) -> Callable[[], dict[str, Any]]:
+    return lambda: {"status": "skipped", "device": device, "skipped": True}

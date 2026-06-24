@@ -21,9 +21,13 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument(
         "--skip-opentrons-fill",
+        "--skip-opentrons",
+        dest="skip_opentrons_fill",
         action="store_true",
-        help="use the Opentrons placeholder client instead of touching the real Flex",
+        help="skip the Opentrons health check",
     )
+    parser.add_argument("--skip-sharc", action="store_true", help="skip the SHARC health check")
+    parser.add_argument("--skip-asmi", action="store_true", help="skip the ASMI health check")
     parser.add_argument(
         "--timeout-s",
         type=float,
@@ -36,6 +40,8 @@ def main(argv: list[str] | None = None) -> int:
         ManualWorkflowSettings(
             controller_config=Path(args.config),
             skip_opentrons_fill=args.skip_opentrons_fill,
+            skip_sharc=args.skip_sharc,
+            skip_asmi=args.skip_asmi,
             health_timeout_s=args.timeout_s,
         )
     )

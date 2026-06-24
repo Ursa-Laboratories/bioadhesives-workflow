@@ -39,3 +39,12 @@ def test_opentrons_full_status_is_ok():
 
     assert failed_health_names(results) == []
     assert "✅ Opentrons Flex" in format_health_report(results)
+
+
+def test_skipped_health_status_is_ok():
+    results = run_health_checks(
+        [HealthTarget("SHARC station", lambda: {"status": "skipped", "device": "sharc"})]
+    )
+
+    assert failed_health_names(results) == []
+    assert "status=skipped" in format_health_report(results)

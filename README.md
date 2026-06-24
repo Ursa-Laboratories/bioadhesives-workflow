@@ -53,6 +53,8 @@ Useful options:
 ```bash
 python -m manual_bioadhesives_workcell --mock-stations
 python -m manual_bioadhesives_workcell --skip-opentrons-fill
+python -m manual_bioadhesives_workcell --skip-sharc
+python -m manual_bioadhesives_workcell --skip-asmi
 python -m manual_bioadhesives_workcell --experiment-id my_run_001
 python -m manual_bioadhesives_workcell --output-csv results/my_run_001.csv
 ```
@@ -60,8 +62,11 @@ python -m manual_bioadhesives_workcell --output-csv results/my_run_001.csv
 `--mock-stations` sends `mock_mode=True` to SHARC and ASMI. The station workers
 must still be reachable, but CubOS should not move hardware.
 
-`--skip-opentrons-fill` uses the existing Opentrons placeholder client and marks
-the Opentrons health line as an intentional placeholder.
+`--skip-opentrons-fill` or `--skip-opentrons` bypasses the Opentrons fill prompt
+and fill stage. `--skip-sharc` bypasses the SHARC move prompt and cure stage.
+`--skip-asmi` bypasses the ASMI move prompt and indentation stage. Skipped
+stages are reported as `status=skipped` in the health summary and do not write
+run rows.
 
 ## Health Check
 
@@ -73,8 +78,8 @@ python -m manual_bioadhesives_workcell.health_check
 
 The command exits `0` when all machines pass health checks and `1` if any check
 fails. It uses a `3` second per-machine timeout by default; adjust that with
-`--timeout-s`. Use `--skip-opentrons-fill` to use the Opentrons placeholder
-health path.
+`--timeout-s`. Use `--skip-opentrons-fill`, `--skip-sharc`, or `--skip-asmi` to
+mark a machine health check as intentionally skipped.
 
 ## Configuration
 
@@ -141,6 +146,7 @@ This file owns the editable runtime defaults for the manual workflow:
 - Opentrons URL, timeout, deck slots, labware, fill volume, and pipetting settings
 - SHARC station URL, timeout, UV cure protocol settings, and cure-time defaults
 - ASMI station URL, timeout, indentation heights, step size, force limit, and measurement settings
+- `SKIP_OPENTRONS_FILL`, `SKIP_SHARC`, and `SKIP_ASMI`
 - the per-well `WORKFLOW_WELLS` plan
 
 Define the source tube rack first:

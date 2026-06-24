@@ -24,9 +24,13 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--mock-stations", action="store_true", help="send mock_mode=True to SHARC and ASMI")
     parser.add_argument(
         "--skip-opentrons-fill",
+        "--skip-opentrons",
+        dest="skip_opentrons_fill",
         action="store_true",
-        help="use the Opentrons placeholder client instead of touching the real Flex",
+        help="bypass the Opentrons fill prompt and fill stage",
     )
+    parser.add_argument("--skip-sharc", action="store_true", help="bypass the SHARC move prompt and cure stage")
+    parser.add_argument("--skip-asmi", action="store_true", help="bypass the ASMI move prompt and indentation stage")
     parser.add_argument("-y", "--yes", action="store_true", help="auto-confirm manual prompts")
     args = parser.parse_args(argv)
 
@@ -38,6 +42,8 @@ def main(argv: list[str] | None = None) -> int:
             output_csv=Path(args.output_csv) if args.output_csv else None,
             mock_stations=args.mock_stations,
             skip_opentrons_fill=args.skip_opentrons_fill,
+            skip_sharc=args.skip_sharc,
+            skip_asmi=args.skip_asmi,
         ),
         input_fn=input_fn,
     )

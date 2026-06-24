@@ -77,6 +77,8 @@ ASMI_MEASURE_WITH_RETURN = False
 
 MOCK_STATIONS = False
 SKIP_OPENTRONS_FILL = False
+SKIP_SHARC = False
+SKIP_ASMI = False
 
 # Define what goes into the plate. Each WorkflowWell maps a reagent source tube
 # to a target well on the well plate and the SHARC cure time for that well.
@@ -104,6 +106,8 @@ class ManualWorkflowSettings:
     health_timeout_s: float = HEALTH_TIMEOUT_S
     mock_stations: bool = MOCK_STATIONS
     skip_opentrons_fill: bool = SKIP_OPENTRONS_FILL
+    skip_sharc: bool = SKIP_SHARC
+    skip_asmi: bool = SKIP_ASMI
 
 
 def build_workflow(
@@ -158,6 +162,9 @@ def build_workflow(
         runners=runners,
         db_path=cfg.db_path,
         output_csv=output_csv,
+        skip_opentrons_fill=settings.skip_opentrons_fill,
+        skip_sharc=settings.skip_sharc,
+        skip_asmi=settings.skip_asmi,
         input_fn=input_fn,
         output_fn=output_fn,
     )

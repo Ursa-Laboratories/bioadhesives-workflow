@@ -65,7 +65,7 @@ def _payload_status(payload: Mapping[str, Any]) -> tuple[bool, str]:
     if payload.get("busy"):
         return False, f"online but busy with {payload.get('current_run_id') or 'unknown run'}"
     status = str(payload.get("status") or "").lower()
-    ok = status in ("", "ok", "running", "healthy", "full")
+    ok = status in ("", "ok", "running", "healthy", "full", "skipped")
     return ok, _health_detail(payload)
 
 

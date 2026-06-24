@@ -30,9 +30,19 @@ def test_default_workflow_wells_use_sharc_exposure_setting():
 
 
 def test_default_workflow_builds_from_repo_root_config():
-    workflow = build_workflow(ManualWorkflowSettings(skip_opentrons_fill=True, mock_stations=True))
+    workflow = build_workflow(
+        ManualWorkflowSettings(
+            skip_opentrons_fill=True,
+            skip_sharc=True,
+            skip_asmi=True,
+            mock_stations=True,
+        )
+    )
 
     assert CONTROLLER_CONFIG.exists()
+    assert workflow.skip_opentrons_fill is True
+    assert workflow.skip_sharc is True
+    assert workflow.skip_asmi is True
     assert workflow.db_path.name == "polymer_indent.db"
     assert workflow.runners.sharc.station.client.gantry_config_yaml
     assert workflow.runners.asmi.station.client.deck_config_yaml

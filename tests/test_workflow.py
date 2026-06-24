@@ -1,4 +1,5 @@
 import csv
+import sqlite3
 
 from manual_bioadhesives_workcell.models import WorkflowWell, build_experiment
 from manual_bioadhesives_workcell.result_store import ResultStore
@@ -10,9 +11,11 @@ class FakeRunner:
         self.name = name
         self.fail_health = fail_health
         self.health_status = health_status
+        self.health_calls = 0
         self.calls = []
 
     def health(self):
+        self.health_calls += 1
         if self.fail_health:
             raise RuntimeError("offline")
         return {"status": self.health_status, "device": self.name}
@@ -112,6 +115,106 @@ def test_workflow_aborts_before_prompts_when_health_fails(tmp_path):
     assert opentrons.calls == []
     assert sharc.calls == []
     assert asmi.calls == []
+
+
+def test_workflow_skip_opentrons_fill_skips_prompt_and_stage(tmp_path):
+    answers = iter(["y", "y"])
+    printed = []
+    opentrons = FakeRunner("opentrons")
+    sharc = FakeRunner("sharc")
+    asmi = FakeRunner("asmi")
+
+    workflow = ManualBioadhesivesWorkflow(
+        experiment=_experiment(),
+        runners=ManualRunners(opentrons=opentrons, sharc=sharc, asmi=asmi),
+        db_path=tmp_path / "results.db",
+        output_csv=tmp_path / "joined.csv",
+        skip_opentrons_fill=True,
+        input_fn=lambda _prompt: next(answers),
+        output_fn=printed.append,
+    )
+
+    assert workflow.run() == 0
+
+    assert opentrons.calls == []
+    assert [call[1] for call in sharc.calls] == ["manual-bio:A1:sharc"]
+    assert [call[1] for call in asmi.calls] == ["manual-bio:A1:asmi"]
+    assert any("Skip Opentrons fill" in line for line in printed)
+
+    with ResultStore(tmp_path / "results.db") as store:
+        kinds = {row["kind"] for row in store.runs_for_well("manual-bio", "A1")}
+    assert kinds == {"sharc", "asmi"}
+
+
+def test_workflow_skip_sharc_skips_health_prompt_and_stage(tmp_path):
+    answers = iter(["y", "y"])
+    opentrons = FakeRunner("opentrons")
+    sharc = FakeRunner("sharc", fail_health=True)
+    asmi = FakeRunner("asmi")
+
+    workflow = ManualBioadhesivesWorkflow(
+        experiment=_experiment(),
+        runners=ManualRunners(opentrons=opentrons, sharc=sharc, asmi=asmi),
+        db_path=tmp_path / "results.db",
+        output_csv=tmp_path / "joined.csv",
+        skip_sharc=True,
+        input_fn=lambda _prompt: next(answers),
+        output_fn=lambda _line: None,
+    )
+
+    assert workflow.run() == 0
+
+    assert opentrons.health_calls == 1
+    assert sharc.health_calls == 0
+    assert asmi.health_calls == 1
+    assert [call[1] for call in opentrons.calls] == ["manual-bio:A1:fill"]
+    assert sharc.calls == []
+    assert [call[1] for call in asmi.calls] == ["manual-bio:A1:asmi"]
+
+    with ResultStore(tmp_path / "results.db") as store:
+        kinds = {row["kind"] for row in store.runs_for_well("manual-bio", "A1")}
+    assert kinds == {"opentrons_fill", "asmi"}
+
+
+def test_workflow_skip_asmi_skips_health_prompt_stage_and_still_finishes_wells(tmp_path):
+    answers = iter(["y", "y"])
+    opentrons = FakeRunner("opentrons")
+    sharc = FakeRunner("sharc")
+    asmi = FakeRunner("asmi", fail_health=True)
+    db_path = tmp_path / "results.db"
+
+    workflow = ManualBioadhesivesWorkflow(
+        experiment=_experiment(),
+        runners=ManualRunners(opentrons=opentrons, sharc=sharc, asmi=asmi),
+        db_path=db_path,
+        output_csv=tmp_path / "joined.csv",
+        skip_asmi=True,
+        input_fn=lambda _prompt: next(answers),
+        output_fn=lambda _line: None,
+    )
+
+    assert workflow.run() == 0
+
+    assert opentrons.health_calls == 1
+    assert sharc.health_calls == 1
+    assert asmi.health_calls == 0
+    assert [call[1] for call in opentrons.calls] == ["manual-bio:A1:fill"]
+    assert [call[1] for call in sharc.calls] == ["manual-bio:A1:sharc"]
+    assert asmi.calls == []
+
+    with ResultStore(db_path) as store:
+        kinds = {row["kind"] for row in store.runs_for_well("manual-bio", "A1")}
+    assert kinds == {"opentrons_fill", "sharc"}
+
+    con = sqlite3.connect(db_path)
+    try:
+        status = con.execute(
+            "SELECT status FROM wells WHERE experiment_id=? AND well=?",
+            ("manual-bio", "A1"),
+        ).fetchone()[0]
+    finally:
+        con.close()
+    assert status == "done"
 
 
 def test_workflow_accepts_opentrons_full_health_status(tmp_path):
