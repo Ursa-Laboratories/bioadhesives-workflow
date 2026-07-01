@@ -4,19 +4,18 @@ Runs the bioadhesives Opentrons -> SHARC -> ASMI flow without the robot arm.
 The operator moves the well plate by hand between machines and confirms each
 move in the CLI before the next hardware step starts.
 
-This checkout also contains `automated_bioadhesives_workcell`, a sibling flow
-with the same Opentrons, SHARC, ASMI, result-store, and CSV abstractions. It
-replaces the manual SHARC/ASMI transfer prompts with calls to the
-`polymer-indentation` arm worker route names:
+This checkout also contains `automated_bioadhesives_workcell`, a separate flow
+with its own Opentrons, SHARC, ASMI, result-store, CSV, and arm-server code. It
+replaces the manual SHARC/ASMI transfer prompts with bundled arm-server route
+calls:
 
 ```text
 opentrons -> uv_station
 uv_station -> asmi
 ```
 
-The arm worker owns the physical xArm and Vention coordinates in
-`polymer-indentation/arm_worker/positions.py`; this repo only calls its HTTP
-`/health` and `/run` endpoints.
+The automated package owns the physical xArm and Vention coordinates in
+`automated_bioadhesives_workcell/settings.py`.
 
 ## Operator Sequence
 
@@ -83,9 +82,10 @@ run rows.
 
 ## Run The Automated Flow
 
-Start the same Opentrons, SHARC, and ASMI services as the manual flow, plus the
-arm worker from the `polymer-indentation` checkout. By default the automated
-flow expects the arm worker at `http://localhost:5004`.
+Start the same Opentrons, SHARC, and ASMI services as the manual flow. The
+automated command starts the bundled arm server, waits for its `/health`
+endpoint, runs the workflow, then stops the arm server before exiting. By
+default the bundled arm server listens on `127.0.0.1:5004`.
 
 ```bash
 python -m automated_bioadhesives_workcell
@@ -96,7 +96,8 @@ Useful options:
 ```bash
 python -m automated_bioadhesives_workcell --mock-arm
 python -m automated_bioadhesives_workcell --mock-stations
-python -m automated_bioadhesives_workcell --arm-url http://localhost:5004
+python -m automated_bioadhesives_workcell --arm-host 127.0.0.1 --arm-port 5004
+python -m automated_bioadhesives_workcell --ot-plate black
 python -m automated_bioadhesives_workcell --skip-opentrons-fill
 python -m automated_bioadhesives_workcell --skip-sharc
 python -m automated_bioadhesives_workcell --skip-asmi
@@ -106,8 +107,9 @@ python -m automated_bioadhesives_workcell --output-csv results/my_run_001.csv
 
 The automated flow health-checks the arm worker before starting hardware work
 and requires the worker to report the `opentrons->uv_station` and
-`uv_station->asmi` routes when those moves are needed. `--mock-arm` sends
-`mock_mode=True` to the arm worker; the worker must still be reachable.
+`uv_station->asmi` routes when those moves are needed. `--mock-arm` starts the
+bundled arm server in logging-only mode and sends `mock_mode=True` on transfer
+requests, so the arm and rail do not move.
 
 Default automated CSV path:
 
@@ -147,6 +149,16 @@ Port `5004` is the arm worker's `/run` route and is not used here.
 The automated workflow does health-check and call the arm worker at port `5004`.
 Its arm URL, timeout, and mock flag live in
 `automated_bioadhesives_workcell/settings.py`.
+
+The automated workflow's arm server settings and editable hardware positions
+also live in `automated_bioadhesives_workcell/settings.py`, including:
+
+- `ARM_SERVER_HOST`, `ARM_SERVER_PORT`, `ARM_SERVER_PYTHON`
+- `ARM_IP`, `RAIL_IP`, `ARM_SPEED`, `RAIL_TIMEOUT`
+- `ARM_SAFE_POSITION`
+- `UV_PICKUP_POSITION`, `UV_PICKUP_LIFTED`, `UV_RAIL_POSITION_MM`
+- `ASMI_SLIDE_IN_POSITION`, `ASMI_SLIDE_OUT_POSITION`, `ASMI_RAIL_POSITION_MM`
+- `OT_PLATE_TYPE`, `OT_BLACK`, `OT_TRANSPARENT`
 
 `configs/controller.yaml` is used for the gantry/deck YAML paths sent to the
 station workers and for the controller DB path. The default local config points

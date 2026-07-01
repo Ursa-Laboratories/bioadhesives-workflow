@@ -26,6 +26,15 @@ def test_automated_package_source_does_not_import_polymer_indent():
     assert offenders == []
 
 
+def test_automated_package_source_does_not_import_manual_package():
+    offenders = []
+    for path in AUTOMATED_PACKAGE_ROOT.rglob("*.py"):
+        text = path.read_text()
+        if "from manual_bioadhesives_workcell" in text or "import manual_bioadhesives_workcell" in text:
+            offenders.append(path.relative_to(AUTOMATED_PACKAGE_ROOT).as_posix())
+    assert offenders == []
+
+
 def test_machine_specific_files_live_under_machines():
     machine_files = [
         "asmi_runner.py",

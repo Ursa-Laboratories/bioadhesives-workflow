@@ -1,15 +1,10 @@
-"""Client for the xArm + Vention-rail transfer worker.
-
-The worker itself lives in the sibling ``polymer-indentation`` checkout. This
-client intentionally depends only on the worker's HTTP contract and route names;
-the physical coordinates stay owned by ``arm_worker/positions.py`` there.
-"""
+"""Client for the bundled xArm + Vention-rail transfer server."""
 
 from __future__ import annotations
 
 from typing import Any
 
-from manual_bioadhesives_workcell.http_client import get_json, new_session, post_json
+from .http_client import get_json, new_session, post_json
 
 
 class ArmTransferError(RuntimeError):
@@ -69,4 +64,3 @@ class ArmTransferClient:
 
     def stop(self) -> dict[str, Any]:
         return post_json(self._session, f"{self.base_url}/stop", {}, timeout=self.health_timeout_s)
-

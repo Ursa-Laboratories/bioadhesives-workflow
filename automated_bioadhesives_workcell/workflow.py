@@ -1,8 +1,4 @@
-"""Automated bioadhesives workflow.
-
-This keeps the manual workflow's Opentrons/SHARC/ASMI runner abstraction and
-replaces the manual plate-transfer prompts with arm-worker transfer calls.
-"""
+"""High-level automated bioadhesives workflow."""
 
 from __future__ import annotations
 
@@ -11,18 +7,14 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol
 
-from manual_bioadhesives_workcell.health import (
+from .health import (
     HealthTarget,
     failed_health_names,
     format_health_report,
     run_health_checks,
 )
-from manual_bioadhesives_workcell.result_store import ResultStore
-from manual_bioadhesives_workcell.workflow import (
-    MachineRunner,
-    ManualBioadhesivesWorkflow,
-    ManualRunners,
-)
+from .reporting import export_joined_asmi_csv
+from .result_store import ResultStore
 
 OPENTRONS_LOCATION = "opentrons"
 SHARC_LOCATION = "uv_station"
@@ -47,6 +39,16 @@ class ArmMover(Protocol):
         ...
 
 
+class MachineRunner(Protocol):
+    name: str
+
+    def health(self) -> dict[str, Any]:
+        ...
+
+    def run(self, *, well: str, params: dict[str, Any], run_id: str) -> dict[str, Any]:
+        ...
+
+
 @dataclass(frozen=True)
 class AutomatedRunners:
     opentrons: MachineRunner
@@ -54,12 +56,8 @@ class AutomatedRunners:
     asmi: MachineRunner
     arm: ArmMover
 
-    @property
-    def manual(self) -> ManualRunners:
-        return ManualRunners(opentrons=self.opentrons, sharc=self.sharc, asmi=self.asmi)
 
-
-class AutomatedBioadhesivesWorkflow(ManualBioadhesivesWorkflow):
+class AutomatedBioadhesivesWorkflow:
     def __init__(
         self,
         *,
@@ -73,18 +71,15 @@ class AutomatedBioadhesivesWorkflow(ManualBioadhesivesWorkflow):
         mock_arm: bool = False,
         output_fn=print,
     ):
-        super().__init__(
-            experiment=experiment,
-            runners=runners.manual,
-            db_path=db_path,
-            output_csv=output_csv,
-            skip_opentrons_fill=skip_opentrons_fill,
-            skip_sharc=skip_sharc,
-            skip_asmi=skip_asmi,
-            output_fn=output_fn,
-        )
+        self.experiment = experiment
         self.runners = runners
+        self.db_path = Path(db_path)
+        self.output_csv = Path(output_csv)
+        self.skip_opentrons_fill = skip_opentrons_fill
+        self.skip_sharc = skip_sharc
+        self.skip_asmi = skip_asmi
         self.mock_arm = mock_arm
+        self.output_fn = output_fn
 
     def run(self) -> int:
         self.output_fn("1. Health check of all machines")
@@ -161,6 +156,10 @@ class AutomatedBioadhesivesWorkflow(ManualBioadhesivesWorkflow):
             return False
         return True
 
+    def run_opentrons_code(self, results: ResultStore) -> None:
+        self.output_fn("3. Run Opentrons code")
+        self._run_stage(results, runner=self.runners.opentrons, kind="opentrons_fill", station="opentrons", tag="fill")
+
     def move_to_sharc(self, results: ResultStore) -> None:
         self.output_fn("4. Move well plate to SHARC with robot arm")
         self._record_arm_transfer(
@@ -178,6 +177,23 @@ class AutomatedBioadhesivesWorkflow(ManualBioadhesivesWorkflow):
             from_location=SHARC_LOCATION,
             to_location=ASMI_LOCATION,
         )
+
+    def run_sharc_code(self, results: ResultStore) -> None:
+        self.output_fn("5. Run SHARC code")
+        self._run_stage(results, runner=self.runners.sharc, kind="sharc", station="sharc", tag="sharc")
+
+    def run_asmi_code(self, results: ResultStore) -> None:
+        self.output_fn("7. Run ASMI code")
+        self._run_stage(results, runner=self.runners.asmi, kind="asmi", station="asmi", tag="asmi")
+
+    def mark_wells_done(self, results: ResultStore) -> None:
+        for well in self.experiment.wells:
+            results.set_well_status(self.experiment.id, well, "done")
+
+    def collect_data_join_and_save_csv(self) -> None:
+        self.output_fn("8. Collect data, join Opentrons/SHARC/ASMI data, and save CSV")
+        export_joined_asmi_csv(self.db_path, self.experiment.id, self.output_csv)
+        self.output_fn(f"CSV saved: {self.output_csv}")
 
     def _record_arm_transfer(
         self,
@@ -243,6 +259,93 @@ class AutomatedBioadhesivesWorkflow(ManualBioadhesivesWorkflow):
 
     def _needs_sharc_location(self) -> bool:
         return not (self.skip_sharc and self.skip_asmi)
+
+    def _health_with_validation(self, runner: MachineRunner):
+        def check() -> dict[str, Any]:
+            payload = dict(runner.health())
+            validate = getattr(runner, "validate", None)
+            if validate is None:
+                return payload
+
+            validations = []
+            for well, params in self.experiment.items():
+                validations.append(
+                    {
+                        "well": well,
+                        "validation": validate(well=well, params=params),
+                    }
+                )
+            payload["validations"] = validations
+            return payload
+
+        return check
+
+    def _run_stage(
+        self,
+        results: ResultStore,
+        *,
+        runner: MachineRunner,
+        kind: str,
+        station: str,
+        tag: str,
+    ) -> None:
+        for well, params in self.experiment.items():
+            run_id = f"{self.experiment.id}:{well}:{tag}"
+            try:
+                _record_step(
+                    results,
+                    runner=runner,
+                    run_id=run_id,
+                    experiment_id=self.experiment.id,
+                    well=well,
+                    params=params,
+                    kind=kind,
+                    station=station,
+                )
+            except Exception as exc:
+                results.set_well_status(self.experiment.id, well, "failed", error=repr(exc))
+                raise
+
+
+def _record_step(
+    results: ResultStore,
+    *,
+    runner: MachineRunner,
+    run_id: str,
+    experiment_id: str,
+    well: str,
+    params: dict[str, Any],
+    kind: str,
+    station: str,
+) -> None:
+    started = time.time()
+    try:
+        response = runner.run(well=well, params=params, run_id=run_id)
+    except Exception as exc:
+        results.record_run(
+            run_id=run_id,
+            experiment_id=experiment_id,
+            well=well,
+            kind=kind,
+            station=station,
+            success=False,
+            started_at=started,
+            finished_at=time.time(),
+            error=f"{type(exc).__name__}: {exc}",
+        )
+        raise
+    results.record_run(
+        run_id=run_id,
+        experiment_id=experiment_id,
+        well=well,
+        kind=kind,
+        station=station,
+        success=_require_success(response, kind),
+        started_at=started,
+        finished_at=time.time(),
+        result=response.get("results", response),
+        artifacts=response.get("artifacts"),
+    )
 
 
 def _require_success(response: dict[str, Any], kind: str) -> bool:

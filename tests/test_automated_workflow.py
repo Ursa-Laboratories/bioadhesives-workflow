@@ -2,7 +2,7 @@ import csv
 import sqlite3
 
 from automated_bioadhesives_workcell.workflow import AutomatedBioadhesivesWorkflow, AutomatedRunners
-from manual_bioadhesives_workcell.models import WorkflowWell, build_experiment
+from automated_bioadhesives_workcell.models import WorkflowWell, build_experiment
 
 
 class FakeRunner:
