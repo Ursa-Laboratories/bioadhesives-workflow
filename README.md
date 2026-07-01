@@ -1,4 +1,4 @@
-# Manual Bioadhesives Workcell
+# Bioadhesives Workcell
 
 Runs the bioadhesives Opentrons -> SHARC -> ASMI flow without the robot arm.
 The operator moves the well plate by hand between machines and confirms each
