@@ -111,11 +111,15 @@ class ManualBioadhesivesWorkflow:
             ),
             HealthTarget(
                 "SHARC station",
-                _skipped_health("sharc") if self.skip_sharc else self.runners.sharc.health,
+                _skipped_health("sharc")
+                if self.skip_sharc
+                else self._health_with_validation(self.runners.sharc),
             ),
             HealthTarget(
                 "ASMI station",
-                _skipped_health("asmi") if self.skip_asmi else self.runners.asmi.health,
+                _skipped_health("asmi")
+                if self.skip_asmi
+                else self._health_with_validation(self.runners.asmi),
             ),
         ]
         results = run_health_checks(targets, progress_fn=self.output_fn)
@@ -126,6 +130,26 @@ class ManualBioadhesivesWorkflow:
             self.output_fn(f"Aborting: offline or unready machine(s): {', '.join(failed)}")
             return False
         return True
+
+    def _health_with_validation(self, runner: MachineRunner):
+        def check() -> dict[str, Any]:
+            payload = dict(runner.health())
+            validate = getattr(runner, "validate", None)
+            if validate is None:
+                return payload
+
+            validations = []
+            for well, params in self.experiment.items():
+                validations.append(
+                    {
+                        "well": well,
+                        "validation": validate(well=well, params=params),
+                    }
+                )
+            payload["validations"] = validations
+            return payload
+
+        return check
 
     def prompt_well_plate_in_opentrons(self) -> bool:
         self.output_fn("2. Prompt user to verify well plate is in the OpenTrons")

@@ -4,6 +4,19 @@ Runs the bioadhesives Opentrons -> SHARC -> ASMI flow without the robot arm.
 The operator moves the well plate by hand between machines and confirms each
 move in the CLI before the next hardware step starts.
 
+This checkout also contains `automated_bioadhesives_workcell`, a sibling flow
+with the same Opentrons, SHARC, ASMI, result-store, and CSV abstractions. It
+replaces the manual SHARC/ASMI transfer prompts with calls to the
+`polymer-indentation` arm worker route names:
+
+```text
+opentrons -> uv_station
+uv_station -> asmi
+```
+
+The arm worker owns the physical xArm and Vention coordinates in
+`polymer-indentation/arm_worker/positions.py`; this repo only calls its HTTP
+`/health` and `/run` endpoints.
 
 ## Operator Sequence
 
@@ -68,6 +81,44 @@ and fill stage. `--skip-sharc` bypasses the SHARC move prompt and cure stage.
 stages are reported as `status=skipped` in the health summary and do not write
 run rows.
 
+## Run The Automated Flow
+
+Start the same Opentrons, SHARC, and ASMI services as the manual flow, plus the
+arm worker from the `polymer-indentation` checkout. By default the automated
+flow expects the arm worker at `http://localhost:5004`.
+
+```bash
+python -m automated_bioadhesives_workcell
+```
+
+Useful options:
+
+```bash
+python -m automated_bioadhesives_workcell --mock-arm
+python -m automated_bioadhesives_workcell --mock-stations
+python -m automated_bioadhesives_workcell --arm-url http://localhost:5004
+python -m automated_bioadhesives_workcell --skip-opentrons-fill
+python -m automated_bioadhesives_workcell --skip-sharc
+python -m automated_bioadhesives_workcell --skip-asmi
+python -m automated_bioadhesives_workcell --experiment-id my_run_001
+python -m automated_bioadhesives_workcell --output-csv results/my_run_001.csv
+```
+
+The automated flow health-checks the arm worker before starting hardware work
+and requires the worker to report the `opentrons->uv_station` and
+`uv_station->asmi` routes when those moves are needed. `--mock-arm` sends
+`mock_mode=True` to the arm worker; the worker must still be reachable.
+
+Default automated CSV path:
+
+```text
+results/<experiment_id>_automated_joined_asmi.csv
+```
+
+Automated arm moves are recorded in the same controller SQLite DB as
+`kind=arm_transfer`, `station=xarm`, with `well=NULL` because each move carries
+the whole plate between workflow stages.
+
 ## Health Check
 
 To check Opentrons, SHARC, and ASMI without running the workflow:
@@ -92,6 +143,10 @@ The workflow reads device URLs from `manual_bioadhesives_workcell/settings.py`:
 The arm worker is not health-checked and is never called. This manual workflow
 talks to Opentrons and to the SHARC/ASMI station-worker `/run-protocol` routes.
 Port `5004` is the arm worker's `/run` route and is not used here.
+
+The automated workflow does health-check and call the arm worker at port `5004`.
+Its arm URL, timeout, and mock flag live in
+`automated_bioadhesives_workcell/settings.py`.
 
 `configs/controller.yaml` is used for the gantry/deck YAML paths sent to the
 station workers and for the controller DB path. The default local config points
@@ -120,6 +175,7 @@ uses the values in `settings.py` for those runtime decisions.
 Repo-level files and directories:
 
 - `manual_bioadhesives_workcell/` - importable Python package and `-m` entrypoint
+- `automated_bioadhesives_workcell/` - automated sibling package and `-m` entrypoint
 - `configs/` - local controller, gantry, and deck YAMLs
 - `tests/` - pytest suite
 - `README.md` - operator and developer notes
@@ -218,7 +274,9 @@ results/<experiment_id>_manual_joined_asmi.csv
 
 ```bash
 python -m manual_bioadhesives_workcell --help
+python -m automated_bioadhesives_workcell --help
 python -m manual_bioadhesives_workcell.health_check --help
 python -m pytest tests -q
 python -m py_compile manual_bioadhesives_workcell/*.py
+python -m py_compile automated_bioadhesives_workcell/*.py
 ```

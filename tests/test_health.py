@@ -32,6 +32,35 @@ def test_busy_health_is_not_ok():
     assert "busy with r1" in format_health_report(results)
 
 
+def test_failed_validation_payload_is_not_ok():
+    results = run_health_checks(
+        [
+            HealthTarget(
+                "ASMI station",
+                lambda: {
+                    "status": "ok",
+                    "device": "asmi",
+                    "validations": [
+                        {
+                            "well": "A1",
+                            "validation": {
+                                "passed": False,
+                                "output": "RESULT: ERROR - deck is out of range\nmore detail",
+                            },
+                        }
+                    ],
+                },
+            )
+        ]
+    )
+
+    report = format_health_report(results)
+
+    assert failed_health_names(results) == ["ASMI station"]
+    assert "❌ ASMI station" in report
+    assert "validation failed: RESULT: ERROR - deck is out of range" in report
+
+
 def test_opentrons_full_status_is_ok():
     results = run_health_checks(
         [HealthTarget("Opentrons Flex", lambda: {"status": "full", "device": "flex"})]

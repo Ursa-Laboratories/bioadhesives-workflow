@@ -18,6 +18,10 @@ class AsmiIndentationRunner:
     def health(self) -> Mapping[str, Any]:
         return self.station.client.health()
 
+    def validate(self, *, well: str, params: Mapping[str, Any]) -> dict[str, Any]:
+        protocol_yaml = render_asmi_protocol(self.station.base_protocol_yaml, well, params)
+        return self.station.client.validate_protocol(protocol_yaml)
+
     def run(self, *, well: str, params: Mapping[str, Any], run_id: str) -> dict[str, Any]:
         protocol_yaml = render_asmi_protocol(self.station.base_protocol_yaml, well, params)
         return self.station.client.run_protocol(

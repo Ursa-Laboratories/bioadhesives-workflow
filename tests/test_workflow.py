@@ -7,11 +7,13 @@ from manual_bioadhesives_workcell.workflow import ManualBioadhesivesWorkflow, Ma
 
 
 class FakeRunner:
-    def __init__(self, name, *, fail_health=False, health_status="ok"):
+    def __init__(self, name, *, fail_health=False, health_status="ok", validation=None):
         self.name = name
         self.fail_health = fail_health
         self.health_status = health_status
+        self.validation = validation
         self.health_calls = 0
+        self.validation_calls = []
         self.calls = []
 
     def health(self):
@@ -19,6 +21,10 @@ class FakeRunner:
         if self.fail_health:
             raise RuntimeError("offline")
         return {"status": self.health_status, "device": self.name}
+
+    def validate(self, *, well, params):
+        self.validation_calls.append((well, dict(params)))
+        return self.validation or {"passed": True}
 
     def run(self, *, well, params, run_id):
         self.calls.append((well, run_id, dict(params)))
@@ -115,6 +121,34 @@ def test_workflow_aborts_before_prompts_when_health_fails(tmp_path):
     assert opentrons.calls == []
     assert sharc.calls == []
     assert asmi.calls == []
+
+
+def test_workflow_aborts_before_prompts_when_station_validation_fails(tmp_path):
+    answers = iter(["y"])
+    printed = []
+    opentrons = FakeRunner("opentrons")
+    sharc = FakeRunner(
+        "sharc",
+        validation={"passed": False, "output": "RESULT: ERROR - bad sharc config"},
+    )
+    asmi = FakeRunner("asmi")
+
+    workflow = ManualBioadhesivesWorkflow(
+        experiment=_experiment(),
+        runners=ManualRunners(opentrons=opentrons, sharc=sharc, asmi=asmi),
+        db_path=tmp_path / "results.db",
+        output_csv=tmp_path / "joined.csv",
+        input_fn=lambda _prompt: next(answers),
+        output_fn=printed.append,
+    )
+
+    assert workflow.run() == 1
+    assert sharc.validation_calls
+    assert opentrons.calls == []
+    assert sharc.calls == []
+    assert asmi.calls == []
+    assert any("❌ SHARC station" in line for line in printed)
+    assert any("bad sharc config" in line for line in printed)
 
 
 def test_workflow_skip_opentrons_fill_skips_prompt_and_stage(tmp_path):
